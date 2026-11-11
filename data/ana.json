@@ -28,6 +28,26 @@
     "roundUps": {
       "enabled": false,
       "step": 5
+    },
+    "weeklyPay": null,
+    "reserveWeeks": 4,
+    "excludedMonths": [],
+    "ratesAuto": "weekly",
+    "aboutMe": {
+      "share": false,
+      "risk": "",
+      "workType": "",
+      "clients": "",
+      "slowMonths": [],
+      "otherJob": "",
+      "priority": "",
+      "style": ""
+    },
+    "steadpalEnabled": true,
+    "onboarded": true,
+    "allocation": {
+      "keepAvailablePct": 0,
+      "leftover": "available"
     }
   },
   "payers": [
@@ -57,6 +77,238 @@
     }
   ],
   "transactions": [
+    {
+      "date": "2024-05-20",
+      "amount": 1700,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 9
+    },
+    {
+      "date": "2024-06-11",
+      "amount": 800,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2024-06-27",
+      "amount": 2000,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 12
+    },
+    {
+      "date": "2024-07-25",
+      "amount": 1500,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 7
+    },
+    {
+      "date": "2024-08-14",
+      "amount": 1000,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2024-08-29",
+      "amount": 2300,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 15
+    },
+    {
+      "date": "2024-09-26",
+      "amount": 1800,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 10
+    },
+    {
+      "date": "2024-10-15",
+      "amount": 700,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2024-10-30",
+      "amount": 2100,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 11
+    },
+    {
+      "date": "2024-11-21",
+      "amount": 1600,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 8
+    },
+    {
+      "date": "2024-12-12",
+      "amount": 900,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2024-12-19",
+      "amount": 2400,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 13
+    },
+    {
+      "date": "2025-01-14",
+      "amount": 900,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2025-01-27",
+      "amount": 1800,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 8
+    },
+    {
+      "date": "2025-02-20",
+      "amount": 2200,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 11
+    },
+    {
+      "date": "2025-03-18",
+      "amount": 700,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2025-03-25",
+      "amount": 1500,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 6
+    },
+    {
+      "date": "2025-04-22",
+      "amount": 2600,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 14
+    },
+    {
+      "date": "2025-05-12",
+      "amount": 600,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2025-05-29",
+      "amount": 1900,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 10
+    },
+    {
+      "date": "2025-06-02",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 0
+    },
+    {
+      "date": "2025-06-24",
+      "amount": 1400,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 16
+    },
+    {
+      "date": "2025-07-01",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 1
+    },
+    {
+      "date": "2025-07-30",
+      "amount": 2100,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 12
+    },
+    {
+      "date": "2025-08-01",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 0
+    },
+    {
+      "date": "2025-08-19",
+      "amount": 900,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2025-09-02",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 2
+    },
+    {
+      "date": "2025-09-26",
+      "amount": 2500,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 9
+    },
+    {
+      "date": "2025-10-01",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 0
+    },
+    {
+      "date": "2025-10-21",
+      "amount": 1600,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 13
+    },
     {
       "date": "2025-11-01",
       "amount": 1200,
@@ -190,8 +442,8 @@
   "goals": [
     {
       "id": "emergency",
-      "name": "Emergency fund (3 months of rent)",
-      "target": 4500,
+      "name": "Emergency fund",
+      "target": 4650,
       "deadline": "2027-02-28",
       "pot": "emergency",
       "priority": 1
@@ -233,5 +485,6 @@
       "amount": 1800,
       "note": "Q1 estimated tax payment"
     }
-  ]
+  ],
+  "available": 650
 }

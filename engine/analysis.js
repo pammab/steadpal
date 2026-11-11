@@ -8,6 +8,29 @@ const DAY = 864e5;
 const toDate = (s) => new Date(s + "T00:00:00Z");
 const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / DAY);
 const nameOf = (data, id) => (data.payers || []).find((p) => p.id === id)?.name || id;
+// Evidence behind the "Next month" numbers: every month and payment used, and each step of the math.
+function forecastEvidence(data) {
+  const months = E.lastMonths(data.user.today, 6);
+  const used = new Set(E.statsMonths(data));
+  const f = E.forecastNextMonth(data);
+  const contractPayers = new Set((data.contracts || []).map((c) => c.payer));
+  const rows = months.map((m) => {
+    const txs = data.transactions.filter((t) => t.date.slice(0, 7) === m);
+    return {
+      month: m, total: sum(txs.map((t) => t.amount)), used: used.has(m),
+      payments: txs.map((t) => ({ date: t.date, client: nameOf(data, t.payer), amount: t.amount, paypal: t.channel === "paypal", retainer: contractPayers.has(t.payer) })),
+    };
+  });
+  const irregular = rows.filter((r) => r.used).map((r) => sum(r.payments.filter((p) => !p.retainer).map((p) => p.amount)));
+  const recurring = sum((data.contracts || []).filter((c) => !(c.endedOn && c.endedOn < data.user.today)).map((c) => c.monthly));
+  const overdue = sum((data.openInvoices || []).map((i) => i.amount));
+  return {
+    rows, average: f.historyMean, usedMonths: rows.filter((r) => r.used).length,
+    recurring, irregular, overdue, low: f.low, expected: f.expected, high: f.high, weak: f.weak,
+    method: "Low = active retainers + the 25th percentile of your other monthly income. Expected = retainers + the median. High = expected + overdue invoices. Rounded to $50. A month is 'weak' when expected is below 75% of your average.",
+  };
+}
+
 const quantile = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.floor(q * (s.length - 1))))]; };
 
 // Seeded random numbers so the demo always shows the same result.
@@ -21,7 +44,7 @@ function rng(seed = 42) {
 // Each month: after-tax income comes in, the weekly pay (or fixed expenses) goes out.
 // "Safe" = the reserve + emergency fund never drops below zero.
 function simulate(data, weekly, horizon, sims, seed) {
-  const months = E.lastMonths(data.user.today, 6);
+  const months = E.statsMonths(data);
   const hist = E.monthlyIncome(data.transactions, months).map((m) => m.amount * (1 - data.settings.taxRate));
   const outPerMonth = weekly ? (weekly * 52) / 12 : data.settings.fixedMonthlyExpenses;
   const overdue = sum((data.openInvoices || []).map((i) => i.amount)) * (1 - data.settings.taxRate);
@@ -47,7 +70,7 @@ function simulate(data, weekly, horizon, sims, seed) {
 
 function runwayRisk(data, opts = {}) {
   const horizon = opts.months || 6, sims = opts.sims || 1000;
-  const stats = E.incomeStats(E.monthlyIncome(data.transactions, E.lastMonths(data.user.today, 6)));
+  const stats = E.incomeStats(E.monthlyIncome(data.transactions, E.statsMonths(data)));
   const weekly = data.settings.salaryEnabled ? E.safeWeeklySalary(stats, data.settings).weekly : 0;
   const base = simulate(data, weekly, horizon, sims, 42);
   const band = Array.from({ length: horizon }, (_, m) => {
@@ -73,7 +96,7 @@ function runwayRisk(data, opts = {}) {
 
 // ---------- 2. Client reliability ----------
 function clientReliability(data, periodMonths = 6) {
-  const months = E.lastMonths(data.user.today, periodMonths);
+  const months = Array.isArray(periodMonths) ? periodMonths : E.lastMonths(data.user.today, periodMonths);
   const txs = data.transactions.filter((t) => months.includes(t.date.slice(0, 7)));
   const total = sum(txs.map((t) => t.amount));
   const ids = [...new Set(txs.map((t) => t.payer).concat((data.openInvoices || []).map((i) => i.payer)))];
@@ -113,9 +136,9 @@ function taxStatus(data) {
 
 // ---------- 4. Reports ----------
 function cashflow(data, periodMonths) {
-  const months = E.lastMonths(data.user.today, periodMonths);
+  const months = Array.isArray(periodMonths) ? periodMonths : E.lastMonths(data.user.today, periodMonths);
   const series = E.monthlyIncome(data.transactions, months);
-  const stats = E.incomeStats(E.monthlyIncome(data.transactions, E.lastMonths(data.user.today, 6)));
+  const stats = E.incomeStats(E.monthlyIncome(data.transactions, E.statsMonths(data)));
   const weekly = data.settings.salaryEnabled ? E.safeWeeklySalary(stats, data.settings).weekly : 0;
   const pay = weekly ? round((weekly * 52) / 12) : data.settings.fixedMonthlyExpenses;
   const rows = series.map((m) => {
@@ -126,6 +149,7 @@ function cashflow(data, periodMonths) {
 }
 
 function report(type, data, periodMonths = 3) {
+  // periodMonths: a number of months or a list of "YYYY-MM" months
   switch (type) {
     case "clients": return { type, ...clientReliability(data, periodMonths) };
     case "taxes": return { type, ...taxStatus(data) };
@@ -152,4 +176,26 @@ function roundUp(price, step = 1) {
   return +(up - price).toFixed(2);
 }
 
-module.exports = { runwayRisk, clientReliability, taxStatus, report, investForecast, roundUp, daysBetween };
+// Report periods: "1" | "3" | "6" | "12" months, "lastYear" (previous calendar year) or custom "YYYY-MM" to "YYYY-MM".
+function resolvePeriod(data, spec = {}) {
+  const today = data.user.today;
+  if (spec.period === "lastYear") {
+    const y = Number(today.slice(0, 4)) - 1;
+    return { months: Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`), label: `Calendar year ${y}` };
+  }
+  if (spec.period === "custom") {
+    const ok = (m) => /^\d{4}-\d{2}$/.test(m || "");
+    if (!ok(spec.from) || !ok(spec.to)) throw new Error("Choose a start and an end month");
+    let [y, m] = spec.from.split("-").map(Number);
+    const [ey, em] = spec.to.split("-").map(Number);
+    if (y * 12 + m > ey * 12 + em) throw new Error("The start month must be before the end month");
+    const months = [];
+    while (y * 12 + m <= ey * 12 + em && months.length < 36) { months.push(`${y}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; y++; } }
+    return { months, label: `${months[0]} to ${months.at(-1)}` };
+  }
+  const n = [1, 3, 6, 12, 24].includes(Number(spec.period)) ? Number(spec.period) : 3;
+  const months = E.lastMonths(today, n);
+  return { months, label: n === 1 ? `Last month (${months[0]})` : `Last ${n} months` };
+}
+
+module.exports = { forecastEvidence, resolvePeriod, runwayRisk, clientReliability, taxStatus, report, investForecast, roundUp, daysBetween };

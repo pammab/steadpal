@@ -23,6 +23,24 @@ const SECRET = process.env.PASSPORT_SECRET || "dev-only-secret-change-me";
 const seed = () => JSON.parse(fs.readFileSync(path.join(__dirname, "data", "ana.json"), "utf8"));
 let data = seed();
 const RATES = JSON.parse(fs.readFileSync(path.join(__dirname, "data", "rates.json"), "utf8"));
+const RATES_META = { lastRefresh: null, lastResult: null };
+// Live rate refresh: the 3-month Treasury bill comes from FRED (Federal Reserve data, public CSV, no key).
+// FDIC national rates are published monthly and the PYUSD reward is set by PayPal: those are updated by hand in data/rates.json.
+async function refreshRates() {
+  const updated = [], failed = [];
+  try {
+    const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS3MO", { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = (await res.text()).trim().split("\n").slice(1).map((l) => l.split(",")).filter((r) => r[1] && r[1] !== ".");
+    const [date, val] = rows[rows.length - 1];
+    const o = RATES.options.find((x) => x.id === "tbill");
+    if (o && Number(val) > 0) { o.rate = +(Number(val) / 100).toFixed(4); o.asOf = date; updated.push(`3-month Treasury bill: ${val}% (${date})`); }
+  } catch (e) { failed.push("3-month Treasury bill (FRED): " + e.message); }
+  RATES_META.lastRefresh = new Date().toISOString().slice(0, 10);
+  RATES_META.lastResult = { updated, failed, manual: ["FDIC savings and CD national averages (published monthly)", "PYUSD reward (set by PayPal)"] };
+  return RATES_META.lastResult;
+}
+const STALE_DAYS = { daily: 1, weekly: 7, monthly: 30 };
 const passports = new Map(); // code -> { summary, signature, expires }
 const activity = []; // latest events shown in the app
 
@@ -44,16 +62,29 @@ const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00Z") - new Date(
 
 function applyPlan(plan) {
   for (const [k, v] of Object.entries(plan.alloc)) {
-    if (k === "unassigned") continue;
+    if (k === "unassigned" || k === "available") { data.available = money((data.available || 0) + v); continue; }
     const goal = data.goals.find((g) => g.id === k);
     const pot = goal ? goal.pot : k;
     data.pots[pot] = money((data.pots[pot] || 0) + v);
   }
 }
 
+// Suggested values: SteadPal proposes, the user decides.
+function suggestions() {
+  const stats = E.incomeStats(E.monthlyIncome(data.transactions, E.statsMonths(data)));
+  const res = E.reserveTarget(stats, data.settings.fixedMonthlyExpenses);
+  const sal = E.safeWeeklySalary(stats, data.settings);
+  return {
+    weeklyPay: sal.suggested, afterTaxMean: sal.afterTaxMean,
+    emergencyMonths: res.months, emergencyAmount: res.amount,
+    rentTimes3: (data.settings.rent || 0) * 3, expensesTimes3: data.settings.fixedMonthlyExpenses * 3, expensesTimes6: data.settings.fixedMonthlyExpenses * 6,
+    irregularity: stats.cv, average: stats.mean,
+  };
+}
+
 function state() {
   const report = E.monthlyReport(data);
-  const months = E.lastMonths(data.user.today, 6);
+  const months = E.statsMonths(data);
   const stats = E.incomeStats(E.monthlyIncome(data.transactions, months));
   return {
     user: data.user,
@@ -69,10 +100,14 @@ function state() {
     transactions: data.transactions.map((t) => {
       const p = (data.payers || []).find((x) => x.id === t.payer) || {};
       const counts = t.channel === "paypal" && ["invoice", "goods_services"].includes(t.type) && p.verified && !p.linkedToUser && (p.accountAgeDays || 0) >= 30;
-      return { date: t.date, client: p.name || t.payer, amount: t.amount, channel: t.channel === "paypal" ? "PayPal" : "Other", type: t.type, passport: Boolean(counts) };
+      return { date: t.date, client: p.name || t.payer, amount: t.amount, channel: t.type === "self_reported" ? "Self-reported" : t.channel === "paypal" ? "PayPal" : "Outside PayPal", type: t.type, passport: Boolean(counts) };
     }),
     activity: activity.slice(0, 12),
     tax: A.taxStatus(data),
+    suggestions: suggestions(),
+    wallet: { available: data.available || 0, inPots: Object.values(data.pots).reduce((a, b) => a + b, 0), enabled: data.settings.steadpalEnabled !== false, onboarded: Boolean(data.settings.onboarded) },
+    otherIncome: data.transactions.filter((t) => t.type === "self_reported"),
+    rates: { asOf: RATES_META.lastRefresh, auto: data.settings.ratesAuto || "weekly" },
     paypal: { enabled: PP.enabled(), invoicing: PP.enabled() && Boolean(INVOICE_TO), clientId: process.env.PAYPAL_CLIENT_ID || null },
     channel3: { enabled: C3.enabled(), cashbackRate: C3.CASHBACK_RATE },
     ai: { enabled: Boolean(process.env.ANTHROPIC_API_KEY), model: AI.MODEL },
@@ -83,6 +118,14 @@ function state() {
 async function receivePayment(amount, payerId, source, paypalId) {
   const inv = data.openInvoices.find((i) => i.payer === payerId && Math.abs(i.amount - amount) < 0.01);
   if (inv) data.openInvoices = data.openInvoices.filter((i) => i !== inv);
+  if (data.settings.steadpalEnabled === false) {
+    // SteadPal is off: PayPal works exactly as before, the whole payment is available to spend.
+    data.transactions.push({ date: data.user.today, amount, payer: payerId, channel: "paypal", type: "invoice", paypalId });
+    data.available = money((data.available || 0) + amount);
+    const explanation = `$${amount} added to your PayPal balance. SteadPal is off, so nothing was split.`;
+    log("payment", explanation, { amount, source });
+    return { plan: { amount, alloc: { available: amount }, off: true }, explanation };
+  }
   const plan = E.planSplit(amount, data); // computed before the payment enters history
   data.transactions.push({ date: data.user.today, amount, payer: payerId, channel: "paypal", type: "invoice", paypalId });
   applyPlan(plan);
@@ -163,7 +206,15 @@ const routes = {
   },
   "POST /api/reports": async (b) => {
     const type = ["income", "clients", "taxes", "goals", "cashflow"].includes(b.type) ? b.type : "income";
-    const r = A.report(type, data, [1, 3, 6].includes(Number(b.months)) ? Number(b.months) : 3);
+    let per;
+    try { per = A.resolvePeriod(data, { period: b.period ?? b.months, from: b.from, to: b.to }); }
+    catch (e) { return [400, { error: e.message }]; }
+    // Self-reported income (outside PayPal) is included only if the user wants it, and always labelled.
+    const includeSelf = b.includeSelf !== false;
+    const isSelf = (t) => t.channel !== "paypal";
+    const view = includeSelf ? data : { ...data, transactions: data.transactions.filter((t) => !isSelf(t)) };
+    const selfTotal = data.transactions.filter((t) => isSelf(t) && per.months.includes(t.date.slice(0, 7))).reduce((a, t) => a + t.amount, 0);
+    const r = { ...A.report(type, view, per.months), periodLabel: per.label, includeSelf, selfReportedInPeriod: selfTotal };
     return [200, { ...r, explanation: await AI.explain(type === "income" ? "period" : `report_${type}`, r) }];
   },
   "POST /api/invest": async (b) => {
@@ -203,6 +254,58 @@ const routes = {
   },
 
 
+  // ---------- SteadPal on/off inside the Wallet, and the user's split preferences ----------
+  "POST /api/steadpal/toggle": async (b) => {
+    if (b.enabled === false) {
+      const inPots = Object.values(data.pots).reduce((a, x) => a + x, 0);
+      data.available = money((data.available || 0) + inPots);
+      for (const k of Object.keys(data.pots)) data.pots[k] = 0;
+      data.settings.steadpalEnabled = false; data.settings.salaryEnabled = false;
+      log("steadpal", `SteadPal turned off. The $${money(inPots)} in your pots is back in your available balance. Your goals and settings are kept.`);
+    } else {
+      data.settings.steadpalEnabled = true;
+      log("steadpal", "SteadPal turned on.");
+    }
+    return [200, state()];
+  },
+  "POST /api/steadpal/setup": async (b) => {
+    const st = data.settings;
+    const tp = st.taxProfile || (st.taxProfile = { federalRate: 0.2, stateRate: 0.05, dueDates: [] });
+    if (b.taxRate !== undefined) {
+      const r = Number(b.taxRate);
+      if (!(r > 0)) tp.enabled = false;
+      else { tp.enabled = true; const stRate = Math.min(tp.stateRate || 0, r); tp.stateRate = stRate; tp.federalRate = +(Math.min(0.6, r) - stRate).toFixed(4); }
+      st.taxRate = tp.enabled ? +((tp.federalRate || 0) + (tp.stateRate || 0)).toFixed(4) : st.taxRate;
+    }
+    if (b.weeklyPay !== undefined) {
+      if (b.weeklyPay === "off") { st.salaryEnabled = false; }
+      else { st.salaryEnabled = true; if (data.pots.salaryReserve == null) data.pots.salaryReserve = 0; st.weeklyPay = b.weeklyPay === "suggested" ? null : Math.max(1, Math.round(Number(b.weeklyPay)) || 0) || null; }
+    }
+    if (b.reserveWeeks !== undefined) st.reserveWeeks = Math.min(12, Math.max(1, Math.round(Number(b.reserveWeeks)) || 4));
+    if (b.emergencyTarget !== undefined) {
+      let g = data.goals.find((x) => x.id === "emergency");
+      if (b.emergencyTarget === "none") { if (g) { data.available = money((data.available || 0) + (data.pots.emergency || 0)); data.goals = data.goals.filter((x) => x !== g); delete data.pots.emergency; } }
+      else {
+        const t = Math.round(Number(b.emergencyTarget));
+        if (t > 0) {
+          if (!g) { const d = new Date(data.user.today + "T00:00:00Z"); d.setUTCMonth(d.getUTCMonth() + 12);
+            g = { id: "emergency", name: "Emergency fund", target: t, deadline: d.toISOString().slice(0, 10), pot: "emergency", priority: 1 }; data.goals.unshift(g); data.pots.emergency = data.pots.emergency || 0; }
+          g.target = t;
+        }
+      }
+    }
+    st.allocation = st.allocation || {};
+    if (b.keepAvailablePct !== undefined) st.allocation.keepAvailablePct = Math.min(0.9, Math.max(0, Number(b.keepAvailablePct) || 0));
+    if (["available", "emergency", "goals"].includes(b.leftover)) st.allocation.leftover = b.leftover;
+    if (b.goal && b.goal.name && Number(b.goal.target) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(b.goal.deadline || "") && b.goal.deadline > data.user.today) {
+      const id = `goal-${Date.now()}`;
+      data.goals.push({ id, name: String(b.goal.name).slice(0, 40), target: Math.round(Number(b.goal.target)), deadline: b.goal.deadline, pot: id, priority: 2 });
+      data.pots[id] = 0;
+    }
+    if (b.finish) { st.onboarded = true; st.steadpalEnabled = true; log("steadpal", "SteadPal is set up with your choices. You can change them anytime in Profile."); }
+    return [200, state()];
+  },
+
   "POST /api/reset": async () => { data = seed(); activity.length = 0; passports.clear(); return [200, state()]; },
 
   // Demo mode: simulate the late Northwind payment without PayPal keys.
@@ -241,7 +344,7 @@ const routes = {
     if (!offer) return [400, { error: "Not a partner merchant: no cashback" }];
     const cashback = money(Number(b.amount) * offer.rate);
     const route = E.routeCashback(cashback, data);
-    const goal = data.goals.find((g) => g.id === route.goal);
+    const goal = data.goals.find((g) => g.id === route.goal) || { pot: "emergency" };
     data.pots[goal.pot] = money((data.pots[goal.pot] || 0) + cashback);
     const explanation = await AI.explain("cashback", route);
     log("cashback", explanation, { amount: cashback, merchant: offer.merchant });
@@ -267,7 +370,7 @@ const routes = {
     if (!p) return [400, { error: "Search for the product first" }];
     const cashback = money(p.price * C3.CASHBACK_RATE);
     const route = E.routeCashback(cashback, data);
-    const goal = data.goals.find((g) => g.id === route.goal);
+    const goal = data.goals.find((g) => g.id === route.goal) || { pot: "emergency" };
     data.pots[goal.pot] = money((data.pots[goal.pot] || 0) + cashback);
     const explanation = await AI.explain("cashback", route);
     log("cashback", `${p.title} ($${p.price}) paid with PayPal. ${explanation}`, { amount: cashback, merchant: p.merchant, source: "channel3" });
@@ -280,15 +383,19 @@ const routes = {
     return [200, { ...r, explanation: await AI.explain("whatif", r) }];
   },
 
-  "GET /api/rates": async () => [200, RATES],
+  "GET /api/rates": async () => {
+    // Auto-refresh on the user's chosen schedule (off / daily / weekly / monthly).
+    const days = STALE_DAYS[data.settings.ratesAuto];
+    const age = RATES_META.lastRefresh ? (Date.now() - new Date(RATES_META.lastRefresh)) / 864e5 : Infinity;
+    if (days && age >= days) await refreshRates();
+    return [200, { ...RATES, lastRefresh: RATES_META.lastRefresh, lastResult: RATES_META.lastResult, auto: data.settings.ratesAuto }];
+  },
 
   // Full simulator: spend now, earn more, invest monthly at an official rate.
   "POST /api/whatif/plan": async (b) => {
-    const opt = RATES.options.find((o) => o.id === b.option) || RATES.options[0];
     const num = (x) => Math.max(0, Number(x) || 0);
-    const r = E.whatIfPlan({ spend: num(b.spend), earn: num(b.earn), invest: num(b.invest), rate: opt.rate, months: num(b.months) || 12 }, data);
-    const out = { ...r, optionName: opt.name, source: opt.source, sourceUrl: opt.url, asOf: opt.asOf };
-    return [200, { ...out, explanation: await AI.explain("whatifplan", out) }];
+    const r = E.whatIfPlan({ spend: num(b.spend), earn: num(b.earn), costs: num(b.costs) }, data);
+    return [200, { ...r, explanation: await AI.explain("whatifplan", r) }];
   },
 
   // Structured goal: I want $X by DATE for PURPOSE.
@@ -297,7 +404,7 @@ const routes = {
     if (!(target > 0)) return [400, { error: "Enter an amount above $0" }];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline) || deadline <= data.user.today) return [400, { error: "Pick a date in the future" }];
     if (!purpose) return [400, { error: "Tell us what it's for" }];
-    const months = E.lastMonths(data.user.today, 6);
+    const months = E.statsMonths(data);
     const salary = E.safeWeeklySalary(E.incomeStats(E.monthlyIncome(data.transactions, months)), data.settings);
     const priority = Number(b.priority) || 2;
     // Money already promised to goals of the same or higher priority (1 = high).
@@ -330,7 +437,9 @@ const routes = {
 
   "POST /api/consultant": async (b) => {
     const r = E.periodReport(data, 6);
-    const context = { ...r, forecast: E.forecastNextMonth(data), weeklyPay: data.settings.salaryEnabled ? state().salary.weekly : null, expenses: data.settings.fixedMonthlyExpenses };
+    const about = data.settings.aboutMe || {};
+    const context = { ...r, forecast: E.forecastNextMonth(data), weeklyPay: data.settings.salaryEnabled ? state().salary.weekly : null, expenses: data.settings.fixedMonthlyExpenses,
+      rent: data.settings.rent, aboutMe: about.share ? { risk: about.risk, workType: about.workType, clients: about.clients, slowMonths: about.slowMonths, otherJob: about.otherJob, priority: about.priority, style: about.style, yearsFreelancing: about.yearsFreelancing } : "not shared" };
     return [200, await AI.consult(b.question, context)];
   },
 
@@ -360,19 +469,117 @@ const routes = {
 
   "POST /api/settings": async (b) => {
     for (const k of ["salaryEnabled", "passportEnabled"]) if (k in b) data.settings[k] = Boolean(b[k]);
+    if (data.settings.salaryEnabled && data.pots.salaryReserve == null) data.pots.salaryReserve = 0;
+    if (Array.isArray(b.excludedMonths)) data.settings.excludedMonths = b.excludedMonths.filter((m) => /^\d{4}-\d{2}$/.test(m)).slice(0, 5);
+    if (["off", "daily", "weekly", "monthly"].includes(b.ratesAuto)) data.settings.ratesAuto = b.ratesAuto;
     return [200, state()];
   },
+
+  // ---------- Profile: the user's own numbers (SteadPal only suggests) ----------
+  "POST /api/profile/numbers": async (b) => {
+    const pos = (x) => (x === "" || x == null ? null : Math.max(0, Math.round(Number(x)) || 0));
+    if (b.rent !== undefined) data.settings.rent = pos(b.rent) ?? data.settings.rent;
+    if (b.expenses !== undefined) data.settings.fixedMonthlyExpenses = pos(b.expenses) ?? data.settings.fixedMonthlyExpenses;
+    if (b.weeklyPay !== undefined) data.settings.weeklyPay = pos(b.weeklyPay) || null; // empty = use the suggestion
+    if (b.reserveWeeks !== undefined) data.settings.reserveWeeks = Math.min(12, Math.max(1, Math.round(Number(b.reserveWeeks)) || 4));
+    if (b.emergencyTarget !== undefined) {
+      const g = data.goals.find((x) => x.id === "emergency");
+      const t = pos(b.emergencyTarget);
+      if (g && t) g.target = t;
+    }
+    log("profile", "Your numbers were updated.");
+    return [200, state()];
+  },
+  "POST /api/profile/about": async (b) => {
+    const a = data.settings.aboutMe || (data.settings.aboutMe = {});
+    const pick = (v, ok) => (ok.includes(v) ? v : "");
+    a.share = Boolean(b.share);
+    a.risk = pick(b.risk, ["cautious", "balanced", "adventurous"]);
+    a.workType = String(b.workType || "").slice(0, 60);
+    a.clients = pick(b.clients, ["1", "2-3", "4-6", "7+"]);
+    a.slowMonths = (Array.isArray(b.slowMonths) ? b.slowMonths : []).filter((m) => /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.test(m));
+    a.otherJob = pick(b.otherJob, ["yes", "no"]);
+    a.priority = pick(b.priority, ["steady pay", "safety cushion", "goals", "growing savings"]);
+    a.style = pick(b.style, ["short", "detailed"]);
+    a.yearsFreelancing = pick(b.yearsFreelancing, ["<1", "1-3", "3-5", "5+"]);
+    return [200, state()];
+  },
+  // Self-reported income (outside PayPal): counted in reports only when the user includes it; never in the passport.
+  "POST /api/income/self": async (b) => {
+    const amount = Math.round(Number(b.amount));
+    const date = String(b.date || "");
+    const source = String(b.source || "").trim().slice(0, 40);
+    if (!(amount > 0)) return [400, { error: "Enter an amount above $0" }];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > data.user.today) return [400, { error: "Pick a date that is not in the future" }];
+    if (!source) return [400, { error: "Where did it come from?" }];
+    const id = "self-" + source.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    if (!data.payers.find((p) => p.id === id)) data.payers.push({ id, name: source, verified: false, linkedToUser: false, accountAgeDays: null });
+    data.transactions.push({ date, amount, payer: id, channel: "manual", type: "self_reported", ref: "sr-" + Date.now() });
+    log("income", `Self-reported income added: $${amount} from ${source} (${date}). Not verified by PayPal.`);
+    return [200, state()];
+  },
+  "POST /api/income/self/delete": async (b) => {
+    data.transactions = data.transactions.filter((t) => t.ref !== b.ref);
+    return [200, state()];
+  },
+
+  // ---------- Pots: every pot except Taxes can be edited or deleted ----------
+  "POST /api/pots/update": async (b) => {
+    if (b.id === "tax") return [400, { error: "The tax pot follows your tax settings in Profile" }];
+    if (b.id === "salaryReserve") {
+      if (b.reserveWeeks) data.settings.reserveWeeks = Math.min(12, Math.max(1, Math.round(Number(b.reserveWeeks))));
+      return [200, state()];
+    }
+    const g = data.goals.find((x) => x.id === b.id);
+    if (!g) return [404, { error: "Pot not found" }];
+    if (b.name) g.name = String(b.name).trim().slice(0, 40) || g.name;
+    if (Number(b.target) > 0) g.target = Math.round(Number(b.target));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(b.deadline || "") && b.deadline > data.user.today) g.deadline = b.deadline;
+    if ([1, 2, 3].includes(Number(b.priority))) g.priority = Number(b.priority);
+    log("pot", `"${g.name}" updated: $${g.target} by ${g.deadline}.`);
+    return [200, state()];
+  },
+  "POST /api/pots/delete": async (b) => {
+    if (b.id === "tax") return [400, { error: "The tax pot can't be deleted; turn tax set-aside off in Profile instead" }];
+    const amount = data.pots[b.id] || 0;
+    if (b.id === "salaryReserve") { data.settings.salaryEnabled = false; delete data.pots.salaryReserve; }
+    else {
+      const g = data.goals.find((x) => x.id === b.id);
+      if (!g) return [404, { error: "Pot not found" }];
+      data.goals = data.goals.filter((x) => x !== g);
+      delete data.pots[g.pot];
+    }
+    log("pot", `Pot deleted. Its $${amount} stays in your PayPal balance.`);
+    return [200, state()];
+  },
+  "POST /api/pots/create": async (b) => {
+    const name = String(b.name || "").trim().slice(0, 40), target = Math.round(Number(b.target));
+    if (!name || !(target > 0)) return [400, { error: "Give the pot a name and an amount" }];
+    const deadline = /^\d{4}-\d{2}-\d{2}$/.test(b.deadline || "") && b.deadline > data.user.today ? b.deadline : null;
+    if (!deadline) return [400, { error: "Pick a date in the future" }];
+    const id = `goal-${Date.now()}`;
+    data.goals.push({ id, name, target, deadline, pot: id, priority: [1, 2, 3].includes(Number(b.priority)) ? Number(b.priority) : 2 });
+    data.pots[id] = 0;
+    return [200, state()];
+  },
+
+  // ---------- Evidence behind the numbers ----------
+  "GET /api/evidence/forecast": async () => [200, A.forecastEvidence(data)],
+
+  // ---------- Rates ----------
+  "POST /api/rates/refresh": async () => [200, { result: await refreshRates(), options: RATES.options, lastRefresh: RATES_META.lastRefresh }],
 
   // Weekly pay from the user's own reserve. Real Payout when keys + receiver are set.
   "POST /api/salary/pay": async () => {
     if (!data.settings.salaryEnabled) return [400, { error: "Weekly pay is turned off" }];
     const s = state().salary;
-    if (data.pots.salaryReserve < s.weekly) return [400, { error: "Reserve too low for this week's pay" }];
+    if ((data.pots.salaryReserve || 0) < s.weekly) return [400, { error: "Reserve too low for this week's pay" }];
     let payout = null;
     if (PP.enabled() && process.env.PAYPAL_PAYOUT_RECEIVER) {
       payout = await PP.createPayout(s.weekly, process.env.PAYPAL_PAYOUT_RECEIVER, "SteadPal weekly pay from your reserve");
     }
     data.pots.salaryReserve = money(data.pots.salaryReserve - s.weekly);
+    data.available = money((data.available || 0) + s.weekly); // inside PayPal: moved from the reserve label to "available"
     log("salary", `Weekly pay of $${s.weekly} sent from your reserve.`, { payoutBatch: payout?.batch_header?.payout_batch_id });
     return [200, { paid: s.weekly, payout, state: state() }];
   },
@@ -386,11 +593,23 @@ const routes = {
     shareable.issuedTo = data.user.name;
     shareable.issuedOn = data.user.today;
     const { code, signature } = signPassport(shareable);
-    passports.set(code, { summary: shareable, signature, expires: Date.now() + 30 * 24 * 3600 * 1000 });
+    // The holder chooses whether viewers may ask about the main clients. Client names are never printed.
+    passports.set(code, { summary: shareable, signature, expires: Date.now() + 30 * 24 * 3600 * 1000, allowRequests: Boolean(b.allowRequests), requests: [] });
     log("passport", `Income passport ${code} created (valid 30 days).`);
-    return [200, { code, verifyUrl: `/verify?code=${code}`, certificateUrl: `/passport?code=${code}`, summary: shareable, excluded: excludedFromPassport }];
+    return [200, { code, verifyUrl: `/verify?code=${code}`, certificateUrl: `/passport?code=${code}`, summary: shareable, excluded: excludedFromPassport, allowRequests: Boolean(b.allowRequests) }];
   },
 
+  // A viewer (e.g. a landlord) asks the holder about the main clients. The holder decides what to share.
+  "POST /api/passport/request": async (b) => {
+    const p = passports.get(String(b.code || "").toUpperCase());
+    if (!p || Date.now() > p.expires) return [404, { error: "This passport is not valid" }];
+    if (!p.allowRequests) return [403, { error: "The holder has not enabled questions on this passport" }];
+    const name = String(b.name || "").trim().slice(0, 60), org = String(b.org || "").trim().slice(0, 60), message = String(b.message || "").trim().slice(0, 300);
+    if (!name || !message) return [400, { error: "Please add your name and a short question" }];
+    p.requests.push({ at: new Date().toISOString(), name, org, message });
+    log("passport", `${name}${org ? ` (${org})` : ""} asked about the clients on passport ${String(b.code).toUpperCase()}: "${message}". You decide what to share.`);
+    return [200, { sent: true }];
+  },
   "POST /api/passport/revoke": async (b) => { passports.delete(String(b.code || "").toUpperCase()); return [200, { revoked: true }]; },
 };
 
@@ -406,7 +625,7 @@ function certificatePage(code, host) {
 <title>SteadPal Income Passport ${code}</title><link rel="icon" href="/logo.svg"><link rel="stylesheet" href="/certificate.css">
 <div class="actions"><button onclick="window.print()">Download PDF</button><a href="/">Back to SteadPal</a></div>
 <main class="cert">
-  <header><img src="/logo.svg" alt="" class="logo"><div><div class="brand">SteadPal</div><div class="sub">Income Passport · a feature concept for PayPal</div></div>
+  <header><img src="/logo.svg" alt="" class="logo"><div><div class="brand">SteadPal</div><div class="sub">Income Passport · a feature concept for PayPal</div><div class="sub" style="color:#2470e6;font-weight:600">Click PayPal. Build your future.</div><div class="sub" style="color:#3b4a6b;font-style:italic">Every dollar through PayPal works for you.</div></div>
   <div class="code"><span>Verification code</span><b>${code}</b></div></header>
   <h1>Income received through PayPal</h1>
   <p class="who">Issued to <b>${s.issuedTo}</b> on ${s.issuedOn}</p>
@@ -420,21 +639,41 @@ function certificatePage(code, host) {
     ${row("History on PayPal", `${s.payPalHistoryMonths} months`)}
     ${row("Consistency", s.monthsAboveThreshold)}
     ${row("Distinct verified clients", s.distinctVerifiedPayers)}
+    ${s.clientConcentration ? row("Largest client / largest 2", `${Math.round(s.clientConcentration.top1Share * 100)}% / ${Math.round(s.clientConcentration.top2Share * 100)}% of income`) : ""}
     ${s.scheduledWeeklyPay ? row("Scheduled weekly pay (separate fact, not income)", s.scheduledWeeklyPay.split(" from")[0]) : ""}
   </section>
+  ${s.clientConcentration && s.clientConcentration.flag ? `<p class="conc"><b>Note:</b> ${s.clientConcentration.text}${p.allowRequests ? " The holder accepts questions about these clients at the verification link below." : ""}</p>` : ""}
   <p class="method">Counts only commercial PayPal payments (invoices, goods and services) from verified clients not linked to the holder. Personal transfers and manually entered income are excluded. Facts only: not a credit score and not a guarantee of employment or future income.</p>
   <footer><div>Check this document at<br><b>${verifyUrl}</b></div><div class="seal">Signed<br>${p.signature.slice(0, 16)}…</div></footer>
 </main></html>`;
 }
 
+const PASSPORT_LABELS = {
+  issuedTo: "Issued to", issuedOn: "Issued on", period: "Period shown", payPalHistoryMonths: "History on PayPal (months)",
+  monthlyAverage: "Monthly average ($)", min: "Lowest month ($)", max: "Highest month ($)", monthsAboveThreshold: "Consistency",
+  distinctVerifiedPayers: "Distinct verified clients", scheduledWeeklyPay: "Scheduled weekly pay", note: "Note",
+};
+const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 function verifyPage(code) {
-  const p = passports.get(String(code || "").toUpperCase());
+  const cd = String(code || "").toUpperCase();
+  const p = passports.get(cd);
   const ok = p && Date.now() < p.expires && signPassport(p.summary).signature === p.signature;
-  const rows = ok ? Object.entries(p.summary).map(([k, v]) => `<tr><th>${k}</th><td>${String(v)}</td></tr>`).join("") : "";
+  const rows = ok ? Object.entries(p.summary).filter(([k]) => k !== "ok" && k !== "clientConcentration")
+    .map(([k, v]) => `<tr><th>${PASSPORT_LABELS[k] || k}</th><td>${esc(v)}</td></tr>`).join("") : "";
+  const cc = ok && p.summary.clientConcentration;
+  const form = ok && p.allowRequests ? `<form class="askform" id="ask"><h2>Ask the holder about these clients</h2>
+    <p class="muted">The holder chose to accept questions. Your request goes to them; they decide what to share. Client names are never shown here.</p>
+    <input name="name" placeholder="Your name" required maxlength="60"><input name="org" placeholder="Organization (optional)" maxlength="60">
+    <textarea name="message" rows="3" maxlength="300" required placeholder="e.g. Could you share who your two main clients are and how long you have worked with them?"></textarea>
+    <button class="btn">Send request</button><p id="askMsg" class="muted"></p></form>
+    <script>document.getElementById("ask").onsubmit=async(e)=>{e.preventDefault();const f=new FormData(e.target);
+      const r=await fetch("/api/passport/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:${JSON.stringify(cd)},name:f.get("name"),org:f.get("org"),message:f.get("message")})});
+      const j=await r.json();document.getElementById("askMsg").textContent=r.ok?"Sent. The holder will decide what to share with you.":j.error;if(r.ok)e.target.reset();};</script>` : "";
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SteadPal passport check</title><link rel="icon" href="/logo.svg"><link rel="stylesheet" href="/style.css">
 <main class="verify"><img src="/logo.svg" alt="" width="44"><h1>Income passport check</h1>
-${ok ? `<p class="ok">Authentic. Issued by SteadPal from PayPal records, unchanged since it was issued.</p><table>${rows}</table>`
+${ok ? `<p class="ok">Authentic. Issued by SteadPal from PayPal records, unchanged since it was issued.</p><table>${rows}</table>
+  ${cc ? `<div class="note ${cc.flag ? "" : "soft"}"><b>Client concentration:</b> ${esc(cc.text)}</div>` : ""}${form}`
      : `<p class="bad">Not valid: this code is unknown, expired or was revoked.</p>`}
 <p class="muted">This page only confirms the document. It shows payments received through PayPal and is not a credit score or a guarantee of future income.</p></main>`;
 }

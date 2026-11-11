@@ -9,6 +9,30 @@ const api = async (method, url, body) => {
 };
 let S = null;
 
+// ---------- Sources behind every fact ("i" buttons) ----------
+const SOURCES = {
+  freelancers: { text: "64 million Americans (38% of the U.S. workforce) did freelance work in 2023.", src: "Upwork, Freelance Forward 2023", url: "https://www.upwork.com/research/freelance-forward-2023-research-report" },
+  shed: { text: "63% of U.S. adults would cover a $400 emergency expense with cash or its equivalent (survey fielded Oct 2025).", src: "Federal Reserve, Economic Well-Being of U.S. Households in 2025", url: "https://www.federalreserve.gov/publications/2026-economic-well-being-of-us-households-in-2025-executive-summary.htm" },
+  emergency: { text: "The CFPB suggests having at least three months of living expenses saved for emergencies, and six to nine months if possible.", src: "Consumer Financial Protection Bureau", url: "https://www.consumerfinance.gov/consumer-tools/money-as-you-grow/teen-young-adult/explore-saving/" },
+  incomeDips: { text: "Research cited by the CFPB finds the median expense spike or income dip is about three weeks of income, and a typical family has more than one a year.", src: "CFPB, Emergency Savings and Financial Security (2022)", url: "https://files.consumerfinance.gov/f/documents/cfpb_mem_emergency-savings-financial-security_report_2022-3.pdf" },
+  seTax: { text: "The self-employment tax rate is 15.3%: 12.4% for Social Security and 2.9% for Medicare.", src: "IRS, Publication 334 (2025)", url: "https://www.irs.gov/publications/p334" },
+  taxDates: { text: "2026 estimated tax payments are due April 15, June 15 and September 15, 2026, and January 15, 2027.", src: "Fidelity Learning Center", url: "https://www.fidelity.com/learning-center/personal-finance/taxes-small-business" },
+  fdic: { text: "FDIC insurance covers $250,000 per depositor, per FDIC-insured bank, for each account ownership category.", src: "FDIC, Understanding Deposit Insurance", url: "https://www.fdic.gov/resources/deposit-insurance/understanding-deposit-insurance" },
+  pyusd: { text: "PYUSD rewards are variable, for eligible U.S. users who opt in. PYUSD is not FDIC-insured.", src: "PayPal, PYUSD Rewards", url: "https://www.paypal.com/us/cshelp/article/what-are-pyusd-rewards-help1247" },
+};
+const i = (key) => `<button type="button" class="i" data-src="${key}" aria-label="Source">i</button>`;
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".i");
+  const pop = $("srcPop");
+  if (!b) { if (!e.target.closest("#srcPop")) pop.hidden = true; return; }
+  const sdef = SOURCES[b.dataset.src]; if (!sdef) return;
+  pop.innerHTML = `<div>${sdef.text}</div><a href="${sdef.url}" target="_blank" rel="noopener">${sdef.src} ↗</a>`;
+  const r = b.getBoundingClientRect();
+  pop.hidden = false;
+  pop.style.top = window.scrollY + r.bottom + 6 + "px";
+  pop.style.left = Math.max(8, Math.min(window.scrollX + r.left - 20, window.scrollX + document.documentElement.clientWidth - 300)) + "px";
+});
+
 // ---------- Tabs ----------
 let currentTab = "home";
 function showTab(name) {
@@ -18,7 +42,7 @@ function showTab(name) {
   if (name === "home" && grid && grid.sizeColumnsToFit) setTimeout(() => grid.sizeColumnsToFit(), 50);
 }
 document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showTab(t.dataset.tab)));
-const POT_NAMES = { tax: "Taxes (estimate)", salaryReserve: "Weekly pay reserve", emergency: "Emergency fund", laptop: "New laptop" };
+const POT_NAMES = { available: "Available to spend", tax: "Taxes (estimate)", salaryReserve: "Weekly pay reserve", emergency: "Emergency fund", laptop: "New laptop" };
 
 function render(s, flash = []) {
   S = s;
@@ -28,17 +52,21 @@ function render(s, flash = []) {
 
   const f = s.forecast;
   $("forecast").classList.toggle("weak", f.weak);
-  $("forecastBody").innerHTML = `<div class="range">${usd(f.low)} – ${usd(f.high)}</div>
-    <div class="muted">Expected about ${usd(f.expected)} vs your 6-month average of ${usd(f.historyMean)}</div>
+  const ex = (s.settings.excludedMonths || []).length;
+  $("forecastBody").innerHTML = `<div class="range"><a class="ev" data-ev="range">${usd(f.low)} – ${usd(f.high)}</a></div>
+    <div class="muted">Expected about <a class="ev" data-ev="expected">${usd(f.expected)}</a> vs your <a class="ev" data-ev="average">${ex ? 6 - ex : 6}-month average of ${usd(f.historyMean)}</a>${ex ? ` <span class="pill">${ex} unusual month${ex > 1 ? "s" : ""} left out</span>` : ""}</div>
     <p class="hint" id="forecastWhy"></p>`;
+  document.querySelectorAll("#forecastBody .ev").forEach((a) => (a.onclick = () => showEvidence(a.dataset.ev)));
   api("GET", "/api/forecast").then((r) => ($("forecastWhy").textContent = r.explanation));
   // Weak-month alert: shows the core promise in one line
-  const weeksCovered = s.settings.salaryEnabled && s.salary.weekly ? Math.floor(s.pots.salaryReserve / s.salary.weekly) : 0;
+  const weeksCovered = s.settings.salaryEnabled && s.salary.weekly ? Math.floor((s.pots.salaryReserve || 0) / s.salary.weekly) : 0;
   $("weakAlert").hidden = !f.weak;
   if (f.weak) {
     const why = f.signals.map((x) => x.type === "contract_ended" ? `${x.payer}'s retainer ended` : `${x.payer} is ${x.daysLate} days late`).join(" and ");
     $("weakAlert").innerHTML = `<b>Heads up: next month may be low.</b> ${why ? why.charAt(0).toUpperCase() + why.slice(1) + ". " : ""}` +
-      (s.settings.salaryEnabled ? `Your ${usd(s.salary.weekly)} weekly pay is protected: your reserve covers ${weeksCovered} week${weeksCovered === 1 ? "" : "s"}.` : "Turn on weekly pay to smooth it out.");
+      (s.settings.salaryEnabled ? `Your ${usd(s.salary.weekly)} weekly pay is protected: your reserve (<a class="ev" data-ev="reserve">${usd(s.pots.salaryReserve || 0)}</a>) covers ${weeksCovered} week${weeksCovered === 1 ? "" : "s"}.` : "Turn on weekly pay to smooth it out.") +
+      ` <span class="muted small">Income dips are common: ${i("incomeDips")}</span>`;
+    document.querySelectorAll("#weakAlert .ev").forEach((a) => (a.onclick = () => { showTab("home"); $("pots").scrollIntoView({ behavior: "smooth", block: "center" }); }));
   }
 
   const goalsByPot = Object.fromEntries(s.goals.map((g) => [g.id, g]));
@@ -47,12 +75,21 @@ function render(s, flash = []) {
   $("pots").innerHTML = potList.map(([k, v]) => {
     const g = goalsByPot[k];
     const pct = g ? Math.min(100, Math.round((v / g.target) * 100)) : null;
-    const name = POT_NAMES[k] || (g ? g.name : k);
-    return `<div class="pot ${flash.includes(k) ? "flash" : ""}"><div class="name">${name}</div>
+    const name = g ? g.name : POT_NAMES[k] || k;
+    const reserveTarget = k === "salaryReserve" ? s.salary.weekly * (s.settings.reserveWeeks || 4) : null;
+    const editBtn = k === "tax" ? `<span class="lock" title="Follows your tax settings in Profile">🔒</span>` : `<button class="potedit" data-pot="${k}" title="Edit or delete">✎</button>`;
+    return `<div class="pot ${flash.includes(k) ? "flash" : ""}" id="pot-${k}"><div class="name">${name} ${editBtn}</div>
       <div class="val">${usd(v)}</div>
       ${g ? `<div class="bar"><i style="width:${pct}%"></i></div><div class="muted small">${pct}% of ${usd(g.target)} · by ${g.deadline || "—"}</div>` : ""}
-      ${k === "emergency" && pyusdRate ? `<div class="pyusd small" title="PYUSD rewards are variable, US only, and PYUSD is not FDIC-insured. Opt-in.">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}%</div>` : ""}</div>`;
+      ${reserveTarget ? `<div class="bar"><i style="width:${Math.min(100, Math.round((v / reserveTarget) * 100))}%"></i></div><div class="muted small">target ${usd(reserveTarget)} = ${s.settings.reserveWeeks || 4} weeks of pay</div>` : ""}
+      ${k === "tax" ? `<div class="muted small">${s.tax.enabled ? Math.round(s.tax.rate * 100) + "% of each payment" : "off"}</div>` : ""}
+      ${k === "emergency" ? `<div class="muted small">Common guide: 3+ months of expenses ${i("emergency")}</div>` : ""}
+      ${k === "emergency" && pyusdRate ? `<div class="pyusd small">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}% ${i("pyusd")}</div>` : ""}
+      <div class="poteditor" id="pe-${k}" hidden></div></div>`;
   }).join("");
+  document.querySelectorAll(".potedit").forEach((b) => (b.onclick = () => openPotEditor(b.dataset.pot)));
+  if (!s.wallet.enabled) $("pots").innerHTML = `<div class="w-off">SteadPal is off: payments go straight to your balance (${usd(s.wallet.available)} available). <button class="btn small-btn" id="potsOn">Turn SteadPal on</button></div>`;
+  if ($("potsOn")) $("potsOn").onclick = () => openSetup();
 
   $("invoices").innerHTML = s.openInvoices.length
     ? s.openInvoices.map((i) => `<div class="invoice">${i.payerName} invoice ${i.id}: ${usd(i.amount)}, due ${i.dueDate}` +
@@ -64,7 +101,10 @@ function render(s, flash = []) {
   $("salaryToggle").checked = s.settings.salaryEnabled;
   $("salaryBody").innerHTML = s.settings.salaryEnabled
     ? `<div class="range">${usd(s.salary.weekly)}<span class="muted small"> / week</span></div>
-       <div class="muted small">From your own reserve. Covers your ${usd(s.settings.fixedMonthlyExpenses)} monthly expenses and leaves about ${usd(s.salary.surplusForGoals)}/month for goals.</div>`
+       <div class="muted small">From your own reserve. ${s.salary.userChosen ? `You chose this amount (suggested: ${usd(s.salary.suggested)}).` : `Suggested from your history; you can change it in Profile.`}
+       Covers your ${usd(s.settings.fixedMonthlyExpenses)} monthly expenses and leaves about ${usd(Math.max(0, s.salary.surplusForGoals))}/month for goals.</div>
+       ${s.salary.surplusForGoals < 0 ? `<div class="note">This pays out more than you earn on average after taxes, so the reserve may shrink over time.</div>` : ""}
+       <div class="muted small fact">Why it matters: only 63% of U.S. adults could cover a $400 surprise expense with cash ${i("shed")}</div>`
     : `<p class="muted small">Off. You manage your own pay. Turn it on to get a steady weekly amount from your reserve.</p>`;
   $("paySalary").style.display = s.settings.salaryEnabled ? "" : "none";
 
@@ -77,6 +117,8 @@ function render(s, flash = []) {
   renderGrid(s.transactions);
   renderTax(s);
   renderProfile(s);
+  renderWallet(s);
+  renderPrefs(s);
 
   $("activity").innerHTML = s.activity.length
     ? s.activity.map((a) => `<li><span class="kind">${a.kind}</span>${a.text}</li>`).join("")
@@ -143,7 +185,7 @@ function renderGrid(rows) {
         { field: "date", headerName: "Date", sort: "desc", width: 120 },
         { field: "client", headerName: "Client", flex: 1, minWidth: 130 },
         { field: "amount", headerName: "Amount", type: "rightAligned", width: 120, valueFormatter: (p) => usd(p.value) },
-        { field: "channel", headerName: "Channel", width: 110 },
+        { field: "channel", headerName: "Channel", width: 130 },
         { field: "type", headerName: "Type", width: 140, valueFormatter: (p) => String(p.value).replace("_", " ") },
         { field: "passport", headerName: "Counts for passport", width: 170, cellRenderer: (p) => (p.value ? "✅ Yes" : "— No") },
       ],
@@ -151,12 +193,176 @@ function renderGrid(rows) {
       pagination: true, paginationPageSize: 10, paginationPageSizeSelector: [10, 20, 50],
       animateRows: true,
     });
+    if ($("txSearch").value) grid.setGridOption("quickFilterText", $("txSearch").value);
   } else {
     el.style.height = "auto";
+    const q = $("txSearch").value.trim().toLowerCase();
+    const shown = q ? data.filter((t) => Object.values(t).join(" ").toLowerCase().includes(q) || usd(t.amount).toLowerCase().includes(q)) : data;
+    const limit = el.dataset.all ? shown.length : 12;
     el.innerHTML = `<table class="tx"><tr><th>Date</th><th>Client</th><th>Amount</th><th>Channel</th><th>Passport</th></tr>` +
-      data.map((t) => `<tr><td>${t.date}</td><td>${t.client}</td><td>${usd(t.amount)}</td><td>${t.channel}</td><td>${t.passport ? "✅" : "—"}</td></tr>`).join("") + `</table>`;
+      shown.slice(0, limit).map((t) => `<tr><td>${t.date}</td><td>${t.client}</td><td>${usd(t.amount)}</td><td>${t.channel}</td><td>${t.passport ? "✅" : "—"}</td></tr>`).join("") + `</table>` +
+      (shown.length > limit ? `<button class="btn link small-btn" id="txMore">Show all ${shown.length} payments</button>` : "");
+    if ($("txMore")) $("txMore").onclick = () => { el.dataset.all = "1"; renderGrid(S.transactions); };
   }
 }
+
+function filterTx(q) {
+  $("txSearch").value = q;
+  if (grid) grid.setGridOption("quickFilterText", q); else if (S) renderGrid(S.transactions);
+}
+$("txSearch").oninput = () => filterTx($("txSearch").value);
+$("txClear").onclick = () => filterTx("");
+
+// ---------- Pots: edit or delete (Taxes is locked) ----------
+function openPotEditor(k) {
+  const box = $("pe-" + k);
+  if (!box.hidden) { box.hidden = true; return; }
+  const g = S.goals.find((x) => x.id === k);
+  if (k === "salaryReserve") {
+    box.innerHTML = `<label class="small">Keep <input type="number" id="pe-weeks" min="1" max="12" value="${S.settings.reserveWeeks || 4}"> weeks of pay ready</label>
+      <div class="row"><button class="btn small-btn" id="pe-save">Save</button><button class="btn link small-btn" id="pe-del">Delete (turns weekly pay off)</button></div>`;
+  } else {
+    box.innerHTML = `<label class="small">Name <input id="pe-name" value="${g.name}" maxlength="40"></label>
+      <label class="small">Target <span class="money"><b>$</b><input id="pe-target" type="number" min="1" value="${g.target}"></span></label>
+      <label class="small">By <input id="pe-date" type="date" value="${g.deadline}"></label>
+      <label class="small">Priority <select id="pe-pri"><option value="1">High</option><option value="2">Normal</option><option value="3">Low</option></select></label>
+      ${k === "emergency" ? `<div class="chips">${emergencyChips()}</div>` : ""}
+      <div class="row"><button class="btn small-btn" id="pe-save">Save</button><button class="btn link small-btn" id="pe-del">Delete pot</button></div>`;
+    box.querySelector("#pe-pri").value = String(g.priority || 2);
+    box.querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => (box.querySelector("#pe-target").value = c.dataset.fill)));
+  }
+  box.hidden = false;
+  box.querySelector("#pe-save").onclick = async () => {
+    const body = k === "salaryReserve" ? { id: k, reserveWeeks: box.querySelector("#pe-weeks").value }
+      : { id: k, name: box.querySelector("#pe-name").value, target: box.querySelector("#pe-target").value, deadline: box.querySelector("#pe-date").value, priority: box.querySelector("#pe-pri").value };
+    try { render(await api("POST", "/api/pots/update", body), [k]); profileLoaded = false; renderProfile(S); } catch (e) { alert(e.message); }
+  };
+  box.querySelector("#pe-del").onclick = async () => {
+    const note = k === "emergency" ? "SteadPal uses this pot first in weak months. " : "";
+    if (!confirm(`${note}Delete this pot? Its ${usd(S.pots[k] || 0)} stays in your PayPal balance.`)) return;
+    render(await api("POST", "/api/pots/delete", { id: k }));
+  };
+}
+// Quick-fill suggestions for the emergency fund: the user still decides.
+function emergencyChips() {
+  const g = S.suggestions;
+  return [[`Suggested for your income: ${usd(g.emergencyAmount)} (${g.emergencyMonths} months)`, g.emergencyAmount], [`3 months of rent: ${usd(g.rentTimes3)}`, g.rentTimes3],
+    [`3 months of expenses: ${usd(g.expensesTimes3)}`, g.expensesTimes3], [`6 months of expenses: ${usd(g.expensesTimes6)}`, g.expensesTimes6]]
+    .map(([t, v]) => `<button type="button" class="chip" data-fill="${v}">${t}</button>`).join("");
+}
+
+// ---------- Evidence behind the "Next month" numbers ----------
+async function showEvidence(which) {
+  const e = await api("GET", "/api/evidence/forecast");
+  const box = $("evidence");
+  const rows = e.rows.map((r) => `<tr class="${r.used ? "" : "off"}"><td><a class="ev" data-month="${r.month}">${r.month}</a></td><td>${usd(r.total)}</td>
+    <td class="small">${r.payments.map((p) => `${p.client} ${usd(p.amount)}${p.paypal ? "" : " (outside PayPal)"}`).join(", ") || "—"}</td>
+    <td><label class="small"><input type="checkbox" data-incl="${r.month}" ${r.used ? "checked" : ""}> count it</label></td></tr>`).join("");
+  const focus = { range: "the range", expected: "the expected amount", average: "your average" }[which] || "these numbers";
+  box.innerHTML = `<div class="ev-head"><b>The data behind ${focus}</b><button class="btn link small-btn" id="evClose">Close</button></div>
+    <table class="tx"><tr><th>Month</th><th>Income</th><th>Payments</th><th>In your average?</th></tr>${rows}</table>
+    <p class="small">Average of the ${e.usedMonths} counted months: <b>${usd(e.average)}</b>. Other (non-retainer) income per counted month: ${e.irregular.map(usd).join(", ")}.
+    Active retainers: ${usd(e.recurring)}. Overdue invoices: ${usd(e.overdue)}.</p>
+    <p class="small muted">${e.method}</p>
+    <p class="small">Untick a month that was unusual (a one-off project, a holiday) and everything recalculates: forecast, weekly pay suggestion, runway check. Tap a month to see its payments on Home.</p>`;
+  box.hidden = false;
+  $("evClose").onclick = () => (box.hidden = true);
+  box.querySelectorAll("[data-month]").forEach((a) => (a.onclick = () => { showTab("home"); filterTx(a.dataset.month); $("txGrid").scrollIntoView({ behavior: "smooth", block: "center" }); }));
+  box.querySelectorAll("[data-incl]").forEach((c) => (c.onchange = async () => {
+    const excluded = [...box.querySelectorAll("[data-incl]")].filter((x) => !x.checked).map((x) => x.dataset.incl);
+    if (excluded.length >= 6) { c.checked = true; return; }
+    render(await api("POST", "/api/settings", { excludedMonths: excluded }));
+    showEvidence(which);
+  }));
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ---------- Preferences: dropdowns with suggested options and "Custom" ----------
+function prefFields(s) {
+  const sg = s.suggestions, rate = s.tax.enabled ? Math.round(s.tax.rate * 100) : 0;
+  const eg = s.goals.find((g) => g.id === "emergency");
+  const keep = Math.round(((s.settings.allocation || {}).keepAvailablePct || 0) * 100);
+  return [
+    { key: "taxRate", label: "Set aside for taxes", unit: "%", value: rate, options: [["0", "Don't set money aside"], ["15", "15%"], ["20", "20%"], ["25", "25% (common for freelancers)"], ["30", "30%"]], hint: `Self-employment tax alone is 15.3% ${i("seTax")}` },
+    { key: "weeklyPay", label: "Weekly pay from your reserve", unit: "$", value: !s.wallet.enabled ? "suggested" : !s.settings.salaryEnabled ? "off" : s.salary.userChosen ? s.salary.weekly : "suggested",
+      options: [["off", "Off: I manage my own pay"], ["suggested", `Suggested: ${usd(sg.weeklyPay)}/week`]], hint: "Suggested from your income history." },
+    { key: "reserveWeeks", label: "Keep this much weekly pay ready", unit: "weeks", value: s.settings.reserveWeeks || 4, options: [["2", "2 weeks"], ["4", "4 weeks (common)"], ["6", "6 weeks"], ["8", "8 weeks"]] },
+    { key: "emergencyTarget", label: "Emergency fund target", unit: "$", value: eg ? eg.target : "none",
+      options: [[String(sg.emergencyAmount), `Suggested for your income: ${usd(sg.emergencyAmount)}`], [String(sg.rentTimes3), `3 months of rent: ${usd(sg.rentTimes3)}`], [String(sg.expensesTimes3), `3 months of expenses: ${usd(sg.expensesTimes3)}`], [String(sg.expensesTimes6), `6 months of expenses: ${usd(sg.expensesTimes6)}`], ["none", "No emergency pot"]], hint: `Common guide: 3+ months of expenses ${i("emergency")}` },
+    { key: "keepAvailablePct", label: "Keep available to spend from every payment", unit: "%", value: keep, options: [["0", "Nothing extra"], ["10", "10%"], ["20", "20%"], ["30", "30%"]] },
+    { key: "leftover", label: "When every goal got its share, the extra goes to", value: (s.settings.allocation || {}).leftover || "available", options: [["available", "Available to spend"], ["emergency", "Emergency fund"], ["goals", "My top-priority goal"]], noCustom: true },
+  ];
+}
+function buildPrefs(box, s) {
+  box.innerHTML = `<div class="form2 prefs">${prefFields(s).map((f) => {
+    const vals = f.options.map((o) => o[0]);
+    const isCustom = !f.noCustom && !vals.includes(String(f.value));
+    return `<label>${f.label}<select data-pref="${f.key}">${f.options.map(([v, t]) => `<option value="${v}" ${String(f.value) === v ? "selected" : ""}>${t}</option>`).join("")}${f.noCustom ? "" : `<option value="custom" ${isCustom ? "selected" : ""}>Custom…</option>`}</select>
+      ${f.noCustom ? "" : `<span class="custom" ${isCustom ? "" : "hidden"}><input type="number" min="0" data-custom="${f.key}" value="${isCustom ? f.value : ""}" placeholder="your number"> ${f.unit}</span>`}
+      ${f.hint ? `<span class="sugg">${f.hint}</span>` : ""}</label>`;
+  }).join("")}</div>`;
+  box.querySelectorAll("select[data-pref]").forEach((sel) => (sel.onchange = () => { const c = box.querySelector(`[data-custom="${sel.dataset.pref}"]`); if (c) c.parentElement.hidden = sel.value !== "custom"; }));
+}
+function readPrefs(box) {
+  const out = {};
+  box.querySelectorAll("select[data-pref]").forEach((sel) => {
+    const k = sel.dataset.pref;
+    let v = sel.value === "custom" ? box.querySelector(`[data-custom="${k}"]`).value : sel.value;
+    if (k === "taxRate" || k === "keepAvailablePct") v = Number(v) / 100;
+    out[k] = v;
+  });
+  return out;
+}
+let prefsLoaded = false;
+function renderPrefs(s) { if (prefsLoaded) return; buildPrefs($("prefForm"), s); prefsLoaded = true; }
+$("prefSave").onclick = async () => {
+  const r = await api("POST", "/api/steadpal/setup", readPrefs($("prefForm")));
+  prefsLoaded = false; profileLoaded = false; render(r);
+  $("prefMsg").textContent = "Saved. New payments will be split this way.";
+};
+
+// ---------- Wallet view (concept) + on/off + first-time setup ----------
+const W_COLORS = { available: "#9fb3d1", tax: "#f0a531", salaryReserve: "#2470e6", emergency: "#2bb673" };
+function renderWallet(s) {
+  const w = s.wallet;
+  $("spEnabled").checked = w.enabled;
+  $("wOff").hidden = w.enabled;
+  const parts = [["available", w.available]].concat(w.enabled ? Object.entries(s.pots).filter(([, v]) => v > 0) : []);
+  const total = parts.reduce((a, [, v]) => a + v, 0) || 1;
+  const nameOf = (k) => (s.goals.find((g) => g.id === k) || {}).name || POT_NAMES[k] || k;
+  const color = (k, idx) => W_COLORS[k] || ["#8e7cf0", "#e46a9b", "#36b3c2", "#b0882e"][idx % 4];
+  $("wTotal").innerHTML = `${usd(w.available + (w.enabled ? w.inPots : 0))}<span class="muted small"> USD · one balance</span>`;
+  $("wBar").innerHTML = parts.map(([k, v], idx) => `<i style="width:${(v / total) * 100}%;background:${color(k, idx)}" title="${nameOf(k)}"></i>`).join("");
+  $("wList").innerHTML = parts.map(([k, v], idx) => `<div class="w-row"><span><i style="background:${color(k, idx)}"></i>${nameOf(k)}${k === "available" ? "" : ' <span class="muted small">label</span>'}</span><b>${usd(v)}</b></div>`).join("");
+  const last = s.activity.find((a) => a.kind === "payment" && a.alloc);
+  const split = last ? Object.entries(last.alloc).map(([k, v]) => `${usd(v)} ${nameOf(k).toLowerCase()}`).join(" · ") : "$400 taxes · $900 weekly pay reserve · $300 emergency fund";
+  $("wFlow").innerHTML = [
+    ["1", "A client pays", `${last ? usd(last.amount) : "$1,600"} lands in your PayPal balance, as usual.`],
+    ["2", "SteadPal labels it", w.enabled ? `${split}. Same balance, just labelled.` : "Off: nothing is labelled. The whole payment is available."],
+    ["3", "Payday", w.enabled && s.settings.salaryEnabled ? `"Send this week's pay to my Wallet" moves ${usd(s.salary.weekly)} from the reserve label to Available to spend.` : "Weekly pay is off; you spend from Available as usual."],
+    ["4", "Spend as usual", "Pay with PayPal, use the PayPal debit card, or transfer to your bank."],
+  ].map(([n, t, d]) => `<div class="w-step"><b>${n}</b><div><div class="w-st">${t}</div><div class="small muted">${d}</div></div></div>`).join("");
+}
+function openSetup() {
+  buildPrefs($("setupForm"), S);
+  const d = new Date(S.user.today); d.setMonth(d.getMonth() + 6); $("suDate").value = d.toISOString().slice(0, 10);
+  $("setup").hidden = false;
+}
+$("spEnabled").onchange = async (e) => {
+  if (e.target.checked) { openSetup(); e.target.checked = false; return; }
+  if (!confirm("Turn SteadPal off? The money in your pots goes back to Available to spend. Your goals and settings are kept, and PayPal works exactly as before.")) { e.target.checked = true; return; }
+  render(await api("POST", "/api/steadpal/toggle", { enabled: false }));
+};
+$("suCancel").onclick = () => { $("setup").hidden = true; renderWallet(S); };
+$("suSave").onclick = async () => {
+  const body = { ...readPrefs($("setupForm")), finish: true };
+  if ($("suName").value && $("suAmt").value) body.goal = { name: $("suName").value, target: $("suAmt").value, deadline: $("suDate").value };
+  const r = await api("POST", "/api/steadpal/setup", body);
+  $("setup").hidden = true; prefsLoaded = false; profileLoaded = false; render(r);
+  toast("✅ SteadPal is on", [["Taxes", r.tax.enabled ? Math.round(r.tax.rate * 100) + "%" : "off"], ["Weekly pay", r.settings.salaryEnabled ? usd(r.salary.weekly) : "off"], ["Emergency target", r.goals.find((g) => g.id === "emergency") ? usd(r.goals.find((g) => g.id === "emergency").target) : "none"]]);
+};
+$("wSetup").onclick = openSetup;
+$("wHome").onclick = () => showTab("home");
 
 async function refresh(flash) { render(await api("GET", "/api/state"), flash); }
 const flashFrom = (alloc) => Object.keys(alloc || {}).filter((k) => k !== "unassigned");
@@ -166,7 +372,7 @@ $("simPay").onclick = async () => {
   const r = await api("POST", "/api/demo/payment", { amount: 1600, payer: "northwind" });
   $("payHint").textContent = r.explanation;
   render(r.state, flashFrom(r.plan.alloc));
-  paydayToast(1600, r.plan.alloc, "Northwind Ltd");
+  if (r.plan.off) toast("💸 $1,600 from Northwind Ltd", [["Available to spend", "+$1,600"]]); else paydayToast(1600, r.plan.alloc, "Northwind Ltd");
 };
 // Channel3: real products, cashback into the pot that needs it most
 async function buyProduct(id) {
@@ -205,7 +411,7 @@ $("simShop").onclick = async () => {
   render(r.state, [r.route.goal]);
 };
 $("paySalary").onclick = async () => {
-  try { const r = await api("POST", "/api/salary/pay"); render(r.state, ["salaryReserve"]); }
+  try { const r = await api("POST", "/api/salary/pay"); render(r.state, ["salaryReserve"]); toast(`💵 ${usd(r.paid)} sent to your Wallet`, [["From", "Weekly pay reserve"], ["To", "Available to spend"]]); }
   catch (e) { alert(e.message); }
 };
 $("salaryToggle").onchange = async (e) => render(await api("POST", "/api/settings", { salaryEnabled: e.target.checked }));
@@ -222,24 +428,36 @@ async function planGoal(save) {
 $("gCheck").onclick = () => planGoal(false);
 $("gSave").onclick = () => planGoal(true);
 
-// ---------- What if: spend / earn / invest at official rates ----------
+// ---------- Rates (official sources, refreshed on the user's schedule) ----------
 let RATES = null;
-api("GET", "/api/rates").then((r) => {
+function showRates(r) {
   RATES = r;
   const py = r.options.find((o) => o.id === "pyusd"); if (py) { pyusdRate = py.rate; if (S) render(S); }
-  $("wiOption").innerHTML = r.options.map((o) => `<option value="${o.id}" ${o.id === "tbill" ? "selected" : ""}>${o.name} · ${(o.rate * 100).toFixed(2)}%</option>`).join("");
-});
+  const tb = r.options.find((o) => o.id === "tbill");
+  $("ratesInfo").textContent = `Treasury bill ${(tb.rate * 100).toFixed(2)}% as of ${tb.asOf}` + (r.lastRefresh ? ` · last checked ${r.lastRefresh}` : "");
+  if (r.auto) $("ratesAuto").value = r.auto;
+}
+api("GET", "/api/rates").then(showRates);
+$("ratesAuto").onchange = async () => { await api("POST", "/api/settings", { ratesAuto: $("ratesAuto").value }); };
+$("ratesNow").onclick = async () => {
+  $("ratesInfo").textContent = "Checking official sources…";
+  const r = await api("POST", "/api/rates/refresh");
+  showRates({ options: r.options, lastRefresh: r.lastRefresh, auto: $("ratesAuto").value });
+  const res = r.result;
+  $("ratesInfo").textContent += res.updated.length ? ` · updated: ${res.updated.join("; ")}` : " · could not reach FRED, kept the saved rates";
+  if ($("ivOut").innerHTML) $("ivBtn").onclick();
+};
+
+// ---------- What if: one decision, its effect on your month ----------
 $("wiBtn").onclick = async () => {
-  const r = await api("POST", "/api/whatif/plan", {
-    spend: $("wiPrice").value, earn: $("wiEarn").value, invest: $("wiInvest").value, option: $("wiOption").value, months: $("wiMonths").value,
-  });
+  const r = await api("POST", "/api/whatif/plan", { spend: $("wiPrice").value, earn: $("wiEarn").value, costs: $("wiCosts").value });
+  const mo = (x) => (x == null ? "not reachable" : x === 0 ? "done" : `${x} mo`);
   $("wiResult").innerHTML = `<div class="mini">
-    <div><span>Free each month</span><b>${usd(r.freePerMonth)}</b></div>
-    <div><span>After ${r.months} months</span><b>${usd(r.futureValue)}</b></div>
-    <div><span>Interest</span><b>${usd(r.interestEarned)}</b></div>
-    <div><span>Emergency fund in</span><b>${r.emergencyMonthsAfter} mo</b></div></div>`;
+    <div><span>Free each month</span><b>${usd(r.freeAfter)}</b><small>${r.freeChange ? (r.freeChange > 0 ? "+" : "−") + usd(Math.abs(r.freeChange)) : "no change"}</small></div>
+    <div><span>${r.emergencyName} ready in</span><b>${mo(r.emergencyMonthsAfter)}</b><small>now ${mo(r.emergencyMonthsNow)}</small></div>
+    <div><span>Weekly pay covers costs?</span><b>${r.weeklyPayCoversCosts ? "Yes" : "No"}</b><small>${usd(r.weeklyPay)}/wk vs ${usd(r.expensesAfter)}/mo</small></div>
+    <div><span>Purchase vs your cushion</span><b>${r.spendShareOfReserve == null ? "—" : Math.round(r.spendShareOfReserve * 100) + "%"}</b><small>of reserve + emergency fund</small></div></div>`;
   $("wiOut").textContent = r.explanation;
-  $("wiSource").innerHTML = r.sourceUrl ? `Rate: ${r.source}, as of ${r.asOf} (<a href="${r.sourceUrl}" target="_blank">source</a>). Illustration only, not advice.` : "Illustration only, not advice.";
   return r;
 };
 
@@ -247,9 +465,15 @@ $("wiBtn").onclick = async () => {
 const pct = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
 const table = (heads, rows) => `<table class="tx"><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</table>`;
 const mini = (pairs) => `<div class="mini">${pairs.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("")}</div>`;
-$("repType").onchange = () => ($("repPeriod").disabled = ["taxes", "goals"].includes($("repType").value));
+$("repType").onchange = () => { const off = ["taxes", "goals"].includes($("repType").value); $("repPeriod").disabled = off; $("repCustom").hidden = off || $("repPeriod").value !== "custom"; };
+$("repPeriod").onchange = () => {
+  $("repCustom").hidden = $("repPeriod").value !== "custom";
+  if (!$("repFrom").value && S) { const t = S.user.today; const y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)); $("repTo").value = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; $("repFrom").value = `${y - 1}-${t.slice(5, 7)}`; }
+};
 $("reportBtn").onclick = async () => {
-  const r = await api("POST", "/api/reports", { type: $("repType").value, months: Number($("repPeriod").value) });
+  let r;
+  try { r = await api("POST", "/api/reports", { type: $("repType").value, period: $("repPeriod").value, from: $("repFrom").value, to: $("repTo").value, includeSelf: $("repSelf").checked }); }
+  catch (e) { $("reportOut").textContent = e.message; return; }
   let stats = "", tbl = "";
   if (r.type === "income") {
     stats = mini([["Income", usd(r.totalIncome)], ["Per month", usd(r.monthlyAverage)], ["Via PayPal", pct(r.payPalShare)], ["Top client", r.topClient ? `${r.topClient.name} ${pct(r.topClient.share)}` : "—"]]);
@@ -266,6 +490,10 @@ $("reportBtn").onclick = async () => {
     tbl = r.payments.length ? table(["Date", "Payment", "Note"], r.payments.map((x) => [x.date, usd(x.amount), x.note || ""])) : "";
   } else if (r.type === "goals") {
     tbl = table(["Goal", "Saved", "Target", "Progress", "Needed / month", "By"], r.goals.map((g) => [g.name, usd(g.saved), usd(g.target), pct(g.progress), usd(g.neededPerMonth), g.deadline]));
+  }
+  if (!["taxes", "goals"].includes(r.type) && r.periodLabel) {
+    const selfNote = r.selfReportedInPeriod ? (r.includeSelf ? ` · <span class="pill warn">Modified report: includes ${usd(r.selfReportedInPeriod)} self-reported or outside PayPal, not verified</span>` : ` · PayPal income only (${usd(r.selfReportedInPeriod)} outside PayPal left out)`) : "";
+    stats = `<div class="small muted">${r.periodLabel}${selfNote}</div>` + stats;
   }
   $("repStats").innerHTML = stats; $("repTable").innerHTML = tbl;
   $("reportOut").textContent = r.explanation;
@@ -301,7 +529,6 @@ $("rwBtn").onclick = async () => {
     <div>${mini([["Weekly pay", r.weekly ? usd(r.weekly) : "off"], ["Reserve today", usd(r.startingBuffer)], ["Typical in " + r.months + " mo", usd(r.medianEnd)], ["Bad case (1 in 10)", usd(r.badCaseEnd)]])}
     ${r.safeWeeklyAt95 != null && r.weekly ? `<div class="small muted">Highest weekly pay that stays 95% safe: <b>${usd(r.safeWeeklyAt95)}</b></div>` : ""}</div></div>${fanChart(r.band, r.startingBuffer)}`;
   $("rwText").textContent = r.explanation;
-  $("rwMethod").textContent = "How: " + r.method + " Shaded area = 8 in 10 futures. Not a guarantee.";
   return r;
 };
 
@@ -347,7 +574,26 @@ let profileLoaded = false;
 function renderProfile(s) {
   $("ruEnabled").checked = Boolean(s.settings.roundUps?.enabled);
   $("ruStep").value = String(s.settings.roundUps?.step || 5);
+  renderOtherIncome(s);
   if (profileLoaded) return; // don't overwrite what the user is typing
+  // Your numbers
+  $("nRent").value = s.settings.rent ?? ""; $("nExp").value = s.settings.fixedMonthlyExpenses ?? "";
+  $("nWeekly").value = s.settings.weeklyPay || ""; $("nWeeks").value = s.settings.reserveWeeks || 4;
+  const eg = s.goals.find((g) => g.id === "emergency");
+  $("nEmerg").value = eg ? eg.target : ""; $("nEmerg").disabled = !eg;
+  $("sWeekly").innerHTML = `Suggested from your history: <button type="button" class="chip" data-wk="${s.suggestions.weeklyPay}">${usd(s.suggestions.weeklyPay)}</button> or leave empty to follow it`;
+  $("sWeekly").querySelector("[data-wk]").onclick = (e) => { $("nWeekly").value = e.target.dataset.wk; numberNotes(); };
+  $("sEmerg").innerHTML = eg ? emergencyChips() + ` ${i("emergency")}` : "You deleted the emergency pot; add one on Home if you want it back.";
+  $("sEmerg").querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => { $("nEmerg").value = c.dataset.fill; numberNotes(); }));
+  numberNotes();
+  // About you
+  const a = s.settings.aboutMe || {};
+  $("abShare").checked = Boolean(a.share);
+  $("abRisk").value = a.risk || ""; $("abWork").value = a.workType || ""; $("abClients").value = a.clients || ""; $("abYears").value = a.yearsFreelancing || "";
+  $("abJob").value = a.otherJob || ""; $("abPriority").value = a.priority || ""; $("abStyle").value = a.style || "";
+  $("abSlow").innerHTML = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    .map((m) => `<label class="mp"><input type="checkbox" value="${m}" ${(a.slowMonths || []).includes(m) ? "checked" : ""}>${m}</label>`).join("");
+  $("oiDate").value = s.user.today;
   const tp = s.settings.taxProfile || {};
   $("tpEnabled").checked = tp.enabled !== false;
   $("tpBusiness").value = tp.businessType || ""; $("tpEntity").value = tp.entity || "Sole proprietor"; $("tpState").value = tp.state || "";
@@ -355,6 +601,51 @@ function renderProfile(s) {
   renderDates(tp.dueDates || []);
   profileLoaded = true;
 }
+// Gentle notes: SteadPal comments, the user decides. Nothing here blocks a save.
+function numberNotes() {
+  const sg = S.suggestions, notes = [];
+  const rent = Number($("nRent").value), exp = Number($("nExp").value), wk = Number($("nWeekly").value) || sg.weeklyPay;
+  const em = Number($("nEmerg").value), weeks = Number($("nWeeks").value);
+  if (exp && rent > exp) notes.push("Rent is higher than your total fixed expenses: does the expenses figure include rent?");
+  if (wk > sg.weeklyPay * 1.1) notes.push(`A weekly pay of ${usd(wk)} is above what your recent income supports (${usd(sg.weeklyPay)}). It looks like you may be overstretching; the Runway check on Analysis shows how safe it is.`);
+  if ((wk * 52) / 12 > sg.afterTaxMean) notes.push("That weekly pay is more than you earn on average after taxes, so the reserve would shrink over time.");
+  if (exp && wk && (wk * 52) / 12 < exp * 0.9) notes.push(`Your weekly pay (${usd(Math.round((wk * 52) / 12))}/month) is below your fixed expenses (${usd(exp)}).`);
+  if (em && exp && em < exp) notes.push(`Your emergency target covers less than one month of expenses. A common guide is at least three months ${i("emergency")}.`);
+  if (em && sg.emergencyAmount && em > sg.expensesTimes6 * 1.5) notes.push("That's a large cushion: past about 9 months of expenses, some people move the extra toward other goals.");
+  if (weeks && weeks < 2) notes.push("With less than 2 weeks of pay in reserve, one late client can interrupt your weekly pay.");
+  $("numNotes").innerHTML = notes.map((n) => `<div class="note">${n}</div>`).join("") ||
+    `<div class="muted small">Your income changes by about ${Math.round(sg.irregularity * 100)}% from month to month, so SteadPal suggests a cushion of about ${sg.emergencyMonths} months of expenses. More irregular income means a bigger suggestion.</div>`;
+}
+["nRent", "nExp", "nWeekly", "nWeeks", "nEmerg"].forEach((id) => ($(id).oninput = numberNotes));
+$("nSave").onclick = async () => {
+  const r = await api("POST", "/api/profile/numbers", { rent: $("nRent").value, expenses: $("nExp").value, weeklyPay: $("nWeekly").value, reserveWeeks: $("nWeeks").value, emergencyTarget: $("nEmerg").value });
+  render(r, ["emergency", "salaryReserve"]);
+  $("nMsg").textContent = `Saved. Weekly pay: ${usd(r.salary.weekly)}${r.salary.userChosen ? " (your choice)" : " (suggested)"}.`;
+};
+$("abSave").onclick = async () => {
+  const r = await api("POST", "/api/profile/about", {
+    share: $("abShare").checked, risk: $("abRisk").value, workType: $("abWork").value, clients: $("abClients").value, yearsFreelancing: $("abYears").value,
+    otherJob: $("abJob").value, priority: $("abPriority").value, style: $("abStyle").value,
+    slowMonths: [...document.querySelectorAll("#abSlow input:checked")].map((x) => x.value),
+  });
+  render(r);
+  $("abMsg").textContent = r.settings.aboutMe.share ? "Saved. The AI consultant will use these answers." : "Saved, but not shared with the AI (switch on to share).";
+};
+$("abShare").onchange = () => $("abSave").onclick();
+function renderOtherIncome(s) {
+  $("oiList").innerHTML = s.otherIncome.length
+    ? `<table class="tx"><tr><th>Date</th><th>From</th><th>Amount</th><th></th></tr>${s.otherIncome.map((t) => `<tr><td>${t.date}</td><td>${(s.transactions.find((x) => x.date === t.date && x.amount === t.amount) || {}).client || t.payer}</td><td>${usd(t.amount)}</td><td><button class="btn link small-btn" data-oidel="${t.ref}">Delete</button></td></tr>`).join("")}</table>`
+    : `<div class="muted small">Nothing added yet.</div>`;
+  document.querySelectorAll("[data-oidel]").forEach((b) => (b.onclick = async () => render(await api("POST", "/api/income/self/delete", { ref: b.dataset.oidel }))));
+}
+$("oiAdd").onclick = async () => {
+  try {
+    const r = await api("POST", "/api/income/self", { date: $("oiDate").value, amount: $("oiAmount").value, source: $("oiSource").value });
+    render(r); $("oiAmount").value = ""; $("oiSource").value = "";
+    $("oiMsg").textContent = "Added. It shows in reports as self-reported and in the transactions table; never in the passport.";
+  } catch (e) { $("oiMsg").textContent = e.message; }
+};
+
 $("tpSave").onclick = async () => {
   const r = await api("POST", "/api/tax/profile", {
     enabled: $("tpEnabled").checked, businessType: $("tpBusiness").value, entity: $("tpEntity").value, state: $("tpState").value,
@@ -388,7 +679,7 @@ $("ruEnabled").onchange = saveRoundUps; $("ruStep").onchange = saveRoundUps;
 
 $("ppBtn").onclick = async () => {
   try {
-    const r = await api("POST", "/api/passport", { months: Number($("ppMonths").value), threshold: 2500 });
+    const r = await api("POST", "/api/passport", { months: Number($("ppMonths").value), threshold: 2500, allowRequests: $("ppAsk").checked });
     const s = r.summary;
     const left = r.excluded.length ? `<p class="muted small">Not counted (private to you): ${r.excluded.map((x) => `${usd(x.amount)} on ${x.date}, ${x.why}`).join("; ")}.</p>` : "";
     $("ppOut").innerHTML = `<div class="passport">
@@ -398,11 +689,12 @@ $("ppBtn").onclick = async () => {
       <div><span>Highest</span><b>${usd(s.max)}</b></div><div><span>Verified clients</span><b>${s.distinctVerifiedPayers}</b></div></div>
       <div class="row"><a class="btn" href="${r.certificateUrl}" target="_blank">Open certificate (PDF)</a>
       <a class="btn ghost" href="${r.verifyUrl}" target="_blank">Verification page</a></div>
-      <p class="muted small">${s.monthsAboveThreshold} · expires in 30 days</p>${left}</div>`;
+      <p class="muted small">${s.monthsAboveThreshold} · expires in 30 days</p>
+      <div class="note ${s.clientConcentration.flag ? "" : "soft"}"><b>Shown on the passport:</b> ${s.clientConcentration.text}${r.allowRequests ? " Viewers can ask you about these clients; you decide what to share." : ""}</div>${left}</div>`;
     refresh();
   } catch (e) { $("ppOut").textContent = e.message; }
 };
-$("reset").onclick = async () => { $("nudge").hidden = true; profileLoaded = false; ["rwOut", "rwText", "rwMethod", "ivOut", "repTable", "ruOut", "tpMsg"].forEach((id) => ($(id).innerHTML = "")); render(await api("POST", "/api/reset")); ["payHint", "goalOut", "wiOut", "wiResult", "wiSource", "reportOut", "repStats", "askOut", "ppOut"].forEach((id) => ($(id).textContent = "")); };
+$("reset").onclick = async () => { prefsLoaded = false; $("setup").hidden = true; $("nudge").hidden = true; $("evidence").hidden = true; filterTx(""); profileLoaded = false; ["rwOut", "rwText", "ivOut", "repTable", "ruOut", "tpMsg", "nMsg", "abMsg", "oiMsg", "evidence"].forEach((id) => ($(id).innerHTML = "")); render(await api("POST", "/api/reset")); ["payHint", "goalOut", "wiOut", "wiResult", "reportOut", "repStats", "askOut", "ppOut"].forEach((id) => ($(id).textContent = "")); };
 
 // ---------- Guided demo: the 5 moments in order, for the video ----------
 const cardOf = (id) => $(id).closest(".card");
@@ -417,10 +709,10 @@ function spot(id, caption) {
 const STEPS = [
   async () => {
     await $("reset").onclick();
-    showTab("home");
     window.scrollTo({ top: 0, behavior: "smooth" });
     document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
-    $("guideCaption").textContent = "Meet Ana: freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500.";
+    showTab("wallet");
+    $("guideCaption").textContent = "Meet Ana: freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500. SteadPal lives inside her PayPal Wallet: one balance, labelled into pots.";
   },
   async () => spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. It warns her about the weak month before it happens, and shows her weekly pay is still protected."),
   async () => {
@@ -447,10 +739,9 @@ const STEPS = [
     }
   },
   async () => {
-    $("wiPrice").value = 1400; $("wiEarn").value = 0; $("wiInvest").value = 100; $("wiMonths").value = 12;
-    if ([...$("wiOption").options].some((o) => o.value === "tbill")) $("wiOption").value = "tbill";
-    await $("wiBtn").onclick();
-    spot("wiOut", "A $1,400 laptop? And what if she puts $100 a month aside at the current Treasury bill rate? The simulator shows both, with the official source.");
+    $("wiPrice").value = 1400; $("wiEarn").value = 0; $("wiCosts").value = 0;
+    const r = await $("wiBtn").onclick();
+    spot("wiOut", `A $1,400 laptop now? Her emergency fund would be ready in ${r.emergencyMonthsAfter} months instead of ${r.emergencyMonthsNow}, and it equals ${Math.round(r.spendShareOfReserve * 100)}% of her cushion. She decides.`);
   },
   async () => {
     $("rwMonths").value = "6";

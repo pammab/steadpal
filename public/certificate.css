@@ -33,3 +33,5 @@ footer b { color: var(--ink); }
   .cert { box-shadow: none; border: 0; margin: 0 auto; max-width: none; }
   .cert::before, .hero div { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+.conc{margin:14px 0 0;padding:10px 12px;border-left:3px solid #f0a531;background:#fff8ec;color:#6b4a10;font-size:13px;line-height:1.45;border-radius:6px}

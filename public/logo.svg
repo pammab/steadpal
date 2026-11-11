@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SteadPal">
-  <rect width="64" height="64" rx="16" fill="#14213d"/>
-  <!-- irregular income (wave) becoming a steady line -->
-  <path d="M10 24c4-7 7-7 10 0s6 7 10 0c2-3 4-4 6-4h18" fill="none" stroke="#8fb3ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- hull with keel: what keeps the boat steady -->
-  <path d="M12 34h40l-6 11c-1 2-3 3-5 3H23c-2 0-4-1-5-3z" fill="#1f6feb"/>
-  <path d="M32 48v7" stroke="#1f6feb" stroke-width="4" stroke-linecap="round"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="15.5" fill="#ffffff" stroke="#dfe5f0" stroke-width="1"/>
+  <!-- Two incomes: each starts as an irregular wave and becomes a steady line.
+       They come from opposite sides, one above and one below, like two hands about to shake,
+       with the dot between them. The bottom line is the top line turned 180 degrees. -->
+  <path d="M5 27c2.8-6.4 5.6-6.4 8.3 0s5.5 6.4 8.3 0c1.5-3.1 3.1-4.4 5-4.4H43" fill="none" stroke="#14213d" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 27c2.8-6.4 5.6-6.4 8.3 0s5.5 6.4 8.3 0c1.5-3.1 3.1-4.4 5-4.4H43" transform="rotate(180 32 32)" fill="none" stroke="#14213d" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="3.4" fill="#1f6feb"/>
 </svg>

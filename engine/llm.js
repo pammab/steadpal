@@ -26,7 +26,7 @@ function template(kind, d) {
     }
     case "split": {
       const a = d.alloc;
-      const label = { tax: "to taxes", salaryReserve: "to your weekly pay reserve", emergency: "to your emergency fund", laptop: "to your laptop goal", unassigned: "left free in your balance" };
+      const label = { tax: "to taxes", salaryReserve: "to your weekly pay reserve", emergency: "to your emergency fund", laptop: "to your laptop goal", unassigned: "left free in your balance", available: "kept available to spend" };
       const parts = Object.entries(a).map(([k, v]) => `$${$n(v)} ${label[k] || "to " + k}`).join(", ");
       return `Your $${$n(d.amount)} payment is split: ${parts}. ${d.forecast.weak ? "Because a weak month is coming, I refilled your weekly pay reserve first and sent the rest to your emergency fund." : "Your goals are on track."}`;
     }
@@ -41,11 +41,15 @@ function template(kind, d) {
     }
     case "whatifplan": {
       const parts = [];
-      if (d.spend || d.earn || d.investPerMonth) parts.push(`${d.spend ? `you spend $${$n(d.spend)} now, ` : ""}your emergency fund would be ready in about ${d.emergencyMonthsAfter} months instead of ${d.emergencyMonthsNow}`);
-      if (d.earn) parts.push(`earning $${$n(d.earn)} more a month adds about $${$n(d.earn * 0.75)} after the tax estimate`);
-      if (d.investPerMonth) parts.push(`putting $${$n(d.investPerMonth)} a month into "${d.optionName}" for ${d.months} months could grow to about $${$n(d.futureValue)} ($${$n(d.interestEarned)} of interest at ${(d.rate * 100).toFixed(2)}% a year)`);
-      if (d.investCapped) parts.push(`you only have about $${$n(d.freePerMonth)} a month free, so I capped the amount invested`);
-      return parts.length ? `If ${parts.join("; ")}. This is an illustration, not a recommendation.` : "Change one of the values to see the effect.";
+      const ef = d.emergencyName || "emergency fund";
+      if (d.spend || d.earn || d.costs) {
+        if (d.emergencyMonthsAfter == null) parts.push(`with these changes nothing would be left each month for your ${ef}`);
+        else parts.push(`your ${ef} would be ready in about ${d.emergencyMonthsAfter} months instead of ${d.emergencyMonthsNow}`);
+      }
+      if (d.freeChange) parts.push(`you'd have $${$n(Math.abs(d.freeChange))} ${d.freeChange > 0 ? "more" : "less"} free each month`);
+      if (d.costs && !d.weeklyPayCoversCosts) parts.push(`your $${$n(d.weeklyPay)} weekly pay would no longer cover monthly costs of $${$n(d.expensesAfter)}`);
+      if (d.spendShareOfReserve >= 0.5) parts.push(`the purchase equals ${Math.round(d.spendShareOfReserve * 100)}% of your reserve and emergency fund`);
+      return parts.length ? `If you make these changes, ${parts.join("; ")}. This is an illustration, not a recommendation.` : "Change one of the values to see the effect.";
     }
     case "goalplan":
       return d.feasible
