@@ -14,7 +14,6 @@
     <div class="brandrow lockup"><img src="/logo.svg" alt="" class="logo"><div>
       <div class="lk-1"><span class="brand">SteadPal</span><span class="tag">The paycheck freelancers never had</span></div>
       <div class="slogan">Click PayPal. Build your future.</div>
-      <div class="support-h">Every dollar through PayPal works for you.</div>
     </div></div>
     <div class="who" id="who"></div>
   </header>
@@ -121,24 +120,6 @@
 
     <div class="lrow r1" data-tab="home">
     <section class="card">
-      <h2>Other income (self-reported)</h2>
-      <p class="muted small">Income outside PayPal (cash, bank transfers, other apps). Reports can include it and label it <b>self-reported</b>. It is never counted in the income passport, the same rule the passport uses for anything PayPal can't verify.</p>
-      <div class="oi-grid">
-        <div><div class="small"><b>Add one</b></div>
-          <div class="row"><input id="oiDate" type="date"><span class="money"><b>$</b><input id="oiAmount" type="number" min="1" placeholder="amount"></span><input id="oiSource" maxlength="40" placeholder="from (e.g. Etsy shop)"><button id="oiAdd" class="btn ghost small-btn">Add</button></div></div>
-        <div><div class="small"><b>Import many</b> <span class="muted">· a CSV file you exported from your bank or another app, or paste the rows</span></div>
-          <div class="row"><input id="oiFile" type="file" accept=".csv,text/csv,text/plain"><a id="oiTemplate" class="small" download="steadpal-income-template.csv">Download a template</a></div>
-          <textarea id="oiPaste" rows="3" placeholder="date,amount,source&#10;2026-04-20,300,Etsy shop&#10;2026-04-27,150,Cash client"></textarea>
-          <div class="row"><button id="oiPreview" class="btn ghost small-btn">Check rows</button><button id="oiImport" class="btn small-btn" disabled>Import</button></div>
-          <div id="oiPrev" class="small"></div></div>
-      </div>
-      <div id="oiList"></div>
-      <p class="small muted" id="oiMsg"></p>
-    </section>
-    </div>
-
-    <div class="lrow r1" data-tab="home">
-    <section class="card">
       <h2>PayPal transactions <span class="muted small">sort, filter, see what counts for the passport · powered by AG Grid</span></h2>
       <div class="row"><input id="txSearch" type="search" placeholder="Search anything: client, month (2026-03), amount, PayPal, self-reported…" class="grow"><button id="txClear" class="btn link small-btn" type="button">Clear</button></div>
       <div id="txGrid" class="ag-theme-quartz tx-grid"></div>
@@ -183,6 +164,25 @@
       </div>
     </section>
     </div>
+
+    <div class="lrow r1" data-tab="analysis" hidden>
+    <section class="card">
+      <h2>Other income (self-reported)</h2>
+      <p class="muted small">Income outside PayPal (cash, bank transfers, other apps). Reports can include it and label it <b>self-reported</b>. It is never counted in the income passport, the same rule the passport uses for anything PayPal can't verify.</p>
+      <div class="oi-grid">
+        <div><div class="small"><b>Add one</b></div>
+          <div class="row"><input id="oiDate" type="date"><span class="money"><b>$</b><input id="oiAmount" type="number" min="1" placeholder="amount"></span><input id="oiSource" maxlength="40" placeholder="from (e.g. Etsy shop)"><button id="oiAdd" class="btn ghost small-btn">Add</button></div></div>
+        <div><div class="small"><b>Import many</b> <span class="muted">· a CSV file you exported from your bank or another app, or paste the rows</span></div>
+          <div class="row"><input id="oiFile" type="file" accept=".csv,text/csv,text/plain"><a id="oiTemplate" class="small" download="steadpal-income-template.csv">Download a template</a></div>
+          <textarea id="oiPaste" rows="3" placeholder="date,amount,source&#10;2026-04-20,300,Etsy shop&#10;2026-04-27,150,Cash client"></textarea>
+          <div class="row"><button id="oiPreview" class="btn ghost small-btn">Check rows</button><button id="oiImport" class="btn small-btn" disabled>Import</button></div>
+          <div id="oiPrev" class="small"></div></div>
+      </div>
+      <div id="oiList"></div>
+      <p class="small muted" id="oiMsg"></p>
+    </section>
+    </div>
+
 
     <div class="lrow r2" data-tab="analysis" hidden>
     <section class="card">
@@ -319,7 +319,7 @@
     <div class="row end"><button id="suCancel" class="btn link">Not now</button><button id="suSave" class="btn">Start SteadPal</button></div>
   </div></div>
 
-  <footer class="muted small"><b class="support-f">SteadPal · a feature concept for PayPal</b><br>Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
+  <footer class="muted small"><b class="support-f">SteadPal · Every dollar through PayPal works for you.</b><br>Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
   <script src="/app.js"></script>
