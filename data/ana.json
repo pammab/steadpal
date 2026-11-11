@@ -10,34 +10,176 @@
     "fixedMonthlyExpenses": 2000,
     "rent": 1500,
     "salaryEnabled": true,
-    "passportEnabled": true
+    "passportEnabled": true,
+    "taxProfile": {
+      "enabled": true,
+      "businessType": "Freelance graphic design",
+      "entity": "Sole proprietor",
+      "state": "CA",
+      "federalRate": 0.2,
+      "stateRate": 0.05,
+      "dueDates": [
+        "2026-04-15",
+        "2026-06-15",
+        "2026-09-15",
+        "2027-01-15"
+      ]
+    },
+    "roundUps": {
+      "enabled": false,
+      "step": 5
+    }
   },
   "payers": [
-    { "id": "bloom", "name": "Bloom Studio", "country": "US", "accountAgeDays": 1400, "verified": true, "linkedToUser": false },
-    { "id": "northwind", "name": "Northwind Ltd", "country": "UK", "accountAgeDays": 2100, "verified": true, "linkedToUser": false },
-    { "id": "kite", "name": "Kite Labs", "country": "US", "accountAgeDays": null, "verified": false, "linkedToUser": false }
+    {
+      "id": "bloom",
+      "name": "Bloom Studio",
+      "country": "US",
+      "accountAgeDays": 1400,
+      "verified": true,
+      "linkedToUser": false
+    },
+    {
+      "id": "northwind",
+      "name": "Northwind Ltd",
+      "country": "UK",
+      "accountAgeDays": 2100,
+      "verified": true,
+      "linkedToUser": false
+    },
+    {
+      "id": "kite",
+      "name": "Kite Labs",
+      "country": "US",
+      "accountAgeDays": null,
+      "verified": false,
+      "linkedToUser": false
+    }
   ],
   "transactions": [
-    { "date": "2025-11-01", "amount": 1200, "payer": "bloom", "channel": "paypal", "type": "invoice" },
-    { "date": "2025-11-19", "amount": 2400, "payer": "northwind", "channel": "paypal", "type": "invoice" },
-    { "date": "2025-12-01", "amount": 1200, "payer": "bloom", "channel": "paypal", "type": "invoice" },
-    { "date": "2025-12-15", "amount": 1500, "payer": "kite", "channel": "manual", "type": "bank_transfer" },
-    { "date": "2026-01-02", "amount": 1200, "payer": "bloom", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-01-22", "amount": 3000, "payer": "northwind", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-01-28", "amount": 800, "payer": "kite", "channel": "manual", "type": "bank_transfer" },
-    { "date": "2026-02-02", "amount": 1200, "payer": "bloom", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-02-20", "amount": 1500, "payer": "northwind", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-02-25", "amount": 1400, "payer": "kite", "channel": "manual", "type": "bank_transfer" },
-    { "date": "2026-03-02", "amount": 1200, "payer": "bloom", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-03-24", "amount": 1800, "payer": "northwind", "channel": "paypal", "type": "invoice" },
-    { "date": "2026-03-27", "amount": 500, "payer": "kite", "channel": "manual", "type": "bank_transfer" },
-    { "date": "2026-04-21", "amount": 800, "payer": "kite", "channel": "manual", "type": "bank_transfer" }
+    {
+      "date": "2025-11-01",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 0
+    },
+    {
+      "date": "2025-11-19",
+      "amount": 2400,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 12
+    },
+    {
+      "date": "2025-12-01",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 2
+    },
+    {
+      "date": "2025-12-15",
+      "amount": 1500,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2026-01-02",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 0
+    },
+    {
+      "date": "2026-01-22",
+      "amount": 3000,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 9
+    },
+    {
+      "date": "2026-01-28",
+      "amount": 800,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2026-02-02",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 1
+    },
+    {
+      "date": "2026-02-20",
+      "amount": 1500,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 18
+    },
+    {
+      "date": "2026-02-25",
+      "amount": 1400,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2026-03-02",
+      "amount": 1200,
+      "payer": "bloom",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 3
+    },
+    {
+      "date": "2026-03-24",
+      "amount": 1800,
+      "payer": "northwind",
+      "channel": "paypal",
+      "type": "invoice",
+      "daysLate": 20
+    },
+    {
+      "date": "2026-03-27",
+      "amount": 500,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    },
+    {
+      "date": "2026-04-21",
+      "amount": 800,
+      "payer": "kite",
+      "channel": "manual",
+      "type": "bank_transfer"
+    }
   ],
   "contracts": [
-    { "payer": "bloom", "kind": "retainer", "monthly": 1200, "endedOn": "2026-03-31" }
+    {
+      "payer": "bloom",
+      "kind": "retainer",
+      "monthly": 1200,
+      "endedOn": "2026-03-31"
+    }
   ],
   "openInvoices": [
-    { "id": "INV-0412", "payer": "northwind", "amount": 1600, "dueDate": "2026-04-13" }
+    {
+      "id": "INV-0412",
+      "payer": "northwind",
+      "amount": 1600,
+      "dueDate": "2026-04-13"
+    }
   ],
   "pots": {
     "tax": 0,
@@ -46,13 +188,50 @@
     "laptop": 0
   },
   "goals": [
-    { "id": "emergency", "name": "Emergency fund (3 months of rent)", "target": 4500, "deadline": "2027-02-28", "pot": "emergency", "priority": 1 },
-    { "id": "laptop", "name": "New laptop", "target": 1400, "deadline": "2026-09-30", "pot": "laptop", "priority": 2 }
+    {
+      "id": "emergency",
+      "name": "Emergency fund (3 months of rent)",
+      "target": 4500,
+      "deadline": "2027-02-28",
+      "pot": "emergency",
+      "priority": 1
+    },
+    {
+      "id": "laptop",
+      "name": "New laptop",
+      "target": 1400,
+      "deadline": "2026-09-30",
+      "pot": "laptop",
+      "priority": 3
+    }
   ],
   "cashbackOffers": [
-    { "merchant": "DesignKit Pro", "rate": 0.03, "partner": true },
-    { "merchant": "PixelStock", "rate": 0.03, "partner": true },
-    { "merchant": "CloudFonts", "rate": 0.03, "partner": true },
-    { "merchant": "InkLine Store", "rate": 0.05, "partner": true }
+    {
+      "merchant": "DesignKit Pro",
+      "rate": 0.03,
+      "partner": true
+    },
+    {
+      "merchant": "PixelStock",
+      "rate": 0.03,
+      "partner": true
+    },
+    {
+      "merchant": "CloudFonts",
+      "rate": 0.03,
+      "partner": true
+    },
+    {
+      "merchant": "InkLine Store",
+      "rate": 0.05,
+      "partner": true
+    }
+  ],
+  "taxPayments": [
+    {
+      "date": "2026-04-15",
+      "amount": 1800,
+      "note": "Q1 estimated tax payment"
+    }
   ]
 }

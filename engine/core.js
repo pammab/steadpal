@@ -166,7 +166,8 @@ function planSplit(amount, data, opts = {}) {
   const alloc = {};
 
   // 1) taxes (fixed rate, estimate, not tax advice)
-  alloc.tax = round(amount * settings.taxRate);
+  const taxOn = settings.taxProfile?.enabled !== false; // tax set-aside is optional
+  alloc.tax = taxOn ? round(amount * settings.taxRate) : 0;
   let left = amount - alloc.tax;
   reasons.push({ step: "tax", rate: settings.taxRate });
 
@@ -211,7 +212,7 @@ function validatePlan(plan, settings) {
   if (vals.some((v) => v < 0)) throw new Error("negative allocation");
   const total = sum(vals);
   if (Math.abs(total - plan.amount) > 1) throw new Error(`split ${total} != payment ${plan.amount}`);
-  if (plan.alloc.tax < round(plan.amount * settings.taxRate) - 1) throw new Error("tax below minimum");
+  if (settings.taxProfile?.enabled !== false && plan.alloc.tax < round(plan.amount * settings.taxRate) - 1) throw new Error("tax below minimum");
   return true;
 }
 
@@ -254,6 +255,69 @@ function whatIfPurchase(price, data) {
     emergencyMonthsNow: monthsNow,
     emergencyMonthsIfBought: monthsAfter,
     delayMonths: monthsAfter - monthsNow,
+  };
+}
+
+// ---------- full what-if plan ----------
+// spend: one-off purchase now · earn: extra income per month · invest: amount per month into
+// an option with an annual rate (compounded monthly) · months: horizon. Education only.
+function whatIfPlan({ spend = 0, earn = 0, invest = 0, rate = 0, months = 12 }, data) {
+  months = clamp(Math.round(months), 1, 120);
+  const recent = lastMonths(data.user.today, 6);
+  const stats = incomeStats(monthlyIncome(data.transactions, recent));
+  const salary = safeWeeklySalary(stats, data.settings);
+  const extraAfterTax = earn * (1 - data.settings.taxRate);
+  const free = Math.max(0, salary.surplusForGoals + extraAfterTax); // per month, after tax and weekly pay
+  const toInvest = Math.min(invest, free);
+  const forGoals = Math.max(1, free - toInvest);
+  const r = rate / 12;
+  const invested = toInvest * months;
+  const fv = r > 0 ? toInvest * ((Math.pow(1 + r, months) - 1) / r) : invested;
+  const emergency = data.goals.find((g) => g.id === "emergency");
+  const st = goalStatus(emergency, data.pots[emergency.pot] || 0, data.user.today);
+  const baseMonths = Math.ceil(st.remaining / Math.max(1, salary.surplusForGoals));
+  const newMonths = Math.ceil((st.remaining + spend) / forGoals);
+  return {
+    months,
+    freePerMonth: round(free),
+    investPerMonth: round(toInvest),
+    investCapped: invest > free,
+    invested: round(invested),
+    futureValue: round(fv),
+    interestEarned: round(fv - invested),
+    emergencyMonthsNow: baseMonths,
+    emergencyMonthsAfter: newMonths,
+    emergencyChangeMonths: newMonths - baseMonths,
+    spend, earn, invest, rate,
+  };
+}
+
+// ---------- period report ----------
+function periodReport(data, periodMonths = 1) {
+  const months = lastMonths(data.user.today, Math.max(periodMonths, 1));
+  const all = monthlyIncome(data.transactions, months);
+  const viaPayPal = monthlyIncome(data.transactions, months, (t) => t.channel === "paypal");
+  const total = sum(all.map((m) => m.amount));
+  const sorted = [...all].sort((a, b) => b.amount - a.amount);
+  const six = incomeStats(monthlyIncome(data.transactions, lastMonths(data.user.today, 6)));
+  const byPayer = {};
+  data.transactions.filter((t) => months.includes(t.date.slice(0, 7))).forEach((t) => (byPayer[t.payer] = (byPayer[t.payer] || 0) + t.amount));
+  const names = Object.fromEntries((data.payers || []).map((p) => [p.id, p.name]));
+  const topPayer = Object.entries(byPayer).sort((a, b) => b[1] - a[1])[0];
+  return {
+    period: months.length === 1 ? months[0] : `${months[0]} to ${months[months.length - 1]}`,
+    months: months.length,
+    totalIncome: total,
+    monthlyAverage: round(total / months.length),
+    best: sorted[0],
+    worst: sorted[sorted.length - 1],
+    payPalShare: total ? +(sum(viaPayPal.map((m) => m.amount)) / total).toFixed(2) : 0,
+    topClient: topPayer ? { name: names[topPayer[0]] || topPayer[0], share: +(topPayer[1] / total).toFixed(2) } : null,
+    sixMonthAverage: six.mean,
+    irregularity: six.cv,
+    reserve: reserveTarget(six, data.settings.fixedMonthlyExpenses),
+    goals: data.goals.map((g) => goalStatus(g, data.pots[g.pot] || 0, data.user.today)),
+    pots: data.pots,
   };
 }
 
@@ -328,4 +392,5 @@ function monthlyReport(data) {
 module.exports = {
   lastMonths, monthlyIncome, incomeStats, forecastNextMonth, reserveTarget, safeWeeklySalary,
   goalStatus, planSplit, validatePlan, routeCashback, whatIfPurchase, passportSummary, monthlyReport,
+  whatIfPlan, periodReport, monthsBetween,
 };

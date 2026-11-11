@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SteadPal">
+  <rect width="64" height="64" rx="16" fill="#14213d"/>
+  <!-- irregular income (wave) becoming a steady line -->
+  <path d="M10 24c4-7 7-7 10 0s6 7 10 0c2-3 4-4 6-4h18" fill="none" stroke="#8fb3ff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- hull with keel: what keeps the boat steady -->
+  <path d="M12 34h40l-6 11c-1 2-3 3-5 3H23c-2 0-4-1-5-3z" fill="#1f6feb"/>
+  <path d="M32 48v7" stroke="#1f6feb" stroke-width="4" stroke-linecap="round"/>
+</svg>

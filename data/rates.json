@@ -1,0 +1,65 @@
+{
+  "note": "Annual rates used by the what-if simulator. Education only. Update the values and dates when sources change.",
+  "options": [
+    {
+      "id": "balance",
+      "name": "Leave it in the PayPal balance",
+      "rate": 0.0,
+      "source": "No interest",
+      "url": null,
+      "asOf": null,
+      "insured": "Not a bank account; check PayPal's terms for how balances are protected",
+      "access": "Instant",
+      "risk": "No growth: inflation slowly reduces what it buys",
+      "what": "Money sitting in your PayPal balance. Easy to use, earns nothing."
+    },
+    {
+      "id": "savings",
+      "name": "Savings account (national average)",
+      "rate": 0.0038,
+      "source": "FDIC National Rates",
+      "url": "https://www.fdic.gov/national-rates-and-rate-caps",
+      "asOf": "2026-08",
+      "insured": "FDIC-insured up to $250,000 per bank",
+      "access": "Anytime",
+      "risk": "Very low. The national average rate is low; online banks often pay more",
+      "what": "A bank savings account. Safe and flexible, good for an emergency fund."
+    },
+    {
+      "id": "cd12",
+      "name": "12-month CD (national average)",
+      "rate": 0.0171,
+      "source": "FDIC National Rates",
+      "url": "https://www.fdic.gov/national-rates-and-rate-caps",
+      "asOf": "2026-08",
+      "insured": "FDIC-insured up to $250,000 per bank",
+      "access": "Locked for 12 months (penalty to withdraw early)",
+      "risk": "Very low, but your money is locked",
+      "what": "A certificate of deposit: you agree to leave money for a fixed time at a fixed rate."
+    },
+    {
+      "id": "tbill",
+      "name": "3-month U.S. Treasury bill",
+      "rate": 0.0421,
+      "source": "Federal Reserve H.15 (3-month constant maturity, via FRED DGS3MO)",
+      "url": "https://fred.stlouisfed.org/series/DGS3MO",
+      "asOf": "2026-11-02",
+      "insured": "Backed by the U.S. government",
+      "access": "Matures in 3 months; can be sold earlier through a broker",
+      "risk": "Very low credit risk; the rate changes when you roll over",
+      "what": "A short loan to the U.S. government, bought through TreasuryDirect or a broker."
+    },
+    {
+      "id": "pyusd",
+      "name": "PYUSD held in PayPal (reward, variable, US only)",
+      "rate": 0.04,
+      "source": "PayPal PYUSD Rewards",
+      "url": "https://www.paypal.com/us/cshelp/article/what-are-pyusd-rewards-help1247",
+      "asOf": "2026-10-26",
+      "insured": "Not FDIC-insured. A stablecoin designed to stay at $1, backed by reserves",
+      "access": "Instant inside PayPal",
+      "risk": "Reward rate is variable and can change; crypto rules and terms apply; US only",
+      "what": "PayPal's dollar stablecoin. PayPal pays a reward to eligible US users who opt in and hold it."
+    }
+  ]
+}

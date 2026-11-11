@@ -11,9 +11,9 @@ const enabled = () => Boolean(process.env.CHANNEL3_API_KEY);
 const CASHBACK_RATE = Number(process.env.CASHBACK_RATE || 0.03);
 
 const DEMO = [
-  { id: "demo-stylus", title: "Pro drawing stylus (demo)", brand: "InkLine", price: 120, currency: "USD", merchant: "inkline.example", url: null, image: null },
-  { id: "demo-tablet", title: "10-inch drawing tablet (demo)", brand: "InkLine", price: 249, currency: "USD", merchant: "inkline.example", url: null, image: null },
-  { id: "demo-fonts", title: "Font bundle, yearly (demo)", brand: "CloudFonts", price: 180, currency: "USD", merchant: "cloudfonts.example", url: null, image: null },
+  { id: "demo-stylus", title: "Pro drawing stylus (demo)", brand: "InkLine", price: 118.4, currency: "USD", merchant: "inkline.example", url: null, image: null },
+  { id: "demo-tablet", title: "10-inch drawing tablet (demo)", brand: "InkLine", price: 246.5, currency: "USD", merchant: "inkline.example", url: null, image: null },
+  { id: "demo-fonts", title: "Font bundle, yearly (demo)", brand: "CloudFonts", price: 179, currency: "USD", merchant: "cloudfonts.example", url: null, image: null },
 ];
 
 // Defensive parsing: offers carry price, currency, domain and buy link.

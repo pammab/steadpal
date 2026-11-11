@@ -4,14 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>SteadPal: the paycheck freelancers never had</title>
+  <link rel="icon" href="/logo.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-grid.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/styles/ag-theme-quartz.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="top">
-    <div>
+    <div class="brandrow"><img src="/logo.svg" alt="" class="logo"><div>
       <div class="brand">SteadPal</div>
       <div class="tag">The paycheck freelancers never had · a feature concept for PayPal</div>
-    </div>
+    </div></div>
     <div class="who" id="who"></div>
   </header>
 
@@ -22,36 +25,50 @@
     <button data-step="2" class="step">2 · Client pays $1,600</button>
     <button data-step="3" class="step">3 · Partner cashback</button>
     <button data-step="4" class="step">4 · What if: $1,400 laptop</button>
-    <button data-step="5" class="step">5 · Income passport</button>
+    <button data-step="5" class="step">5 · Runway risk</button>
+    <button data-step="6" class="step">6 · Income passport</button>
+    <button data-step="7" class="step">7 · Clients report</button>
     <div class="guide-caption" id="guideCaption">Follow Ana, a freelance designer whose income changes every month.</div>
   </nav>
 
+  <nav class="tabs" id="tabs">
+    <button data-tab="home" class="tab active">Home</button>
+    <button data-tab="analysis" class="tab">Analysis</button>
+    <button data-tab="profile" class="tab">Profile</button>
+  </nav>
+
   <main class="grid">
-    <section class="card wide forecast" id="forecast">
+    <section data-tab="home" class="card wide forecast" id="forecast">
       <h2>Next month</h2>
+      <div id="weakAlert" class="alert" hidden></div>
       <div id="forecastBody" class="muted">Loading…</div>
     </section>
 
-    <section class="card wide">
+    <section data-tab="home" class="card wide">
       <h2>Your pots <span class="muted small">labels over your PayPal balance · money never leaves your account</span></h2>
       <div class="pots" id="pots"></div>
     </section>
 
-    <section class="card">
+    <section data-tab="home" class="card">
       <h2>Get paid</h2>
       <div id="invoices"></div>
+      <div id="nudge" class="nudge" hidden>
+        <div class="small muted" id="nudgeHead"></div>
+        <textarea id="nudgeText" rows="7"></textarea>
+        <div class="row"><button id="nudgeSend" class="btn">Send reminder</button><button id="nudgeCancel" class="btn link">Cancel</button></div>
+      </div>
       <div id="payButtons"></div>
       <button id="simPay" class="btn">Simulate the late $1,600 payment</button>
       <p class="hint" id="payHint"></p>
     </section>
 
-    <section class="card">
+    <section data-tab="home" class="card">
       <h2>Weekly pay <label class="switch"><input type="checkbox" id="salaryToggle"><span>on</span></label></h2>
       <div id="salaryBody"></div>
       <button id="paySalary" class="btn ghost">Send this week's pay</button>
     </section>
 
-    <section class="card">
+    <section data-tab="home" class="card">
       <h2>Partner cashback</h2>
       <p class="muted small">Pay with PayPal at a partner. The cashback goes to the goal that needs it most.</p>
       <div class="row">
@@ -65,27 +82,16 @@
       <button id="simShop" class="btn ghost">Buy a $120 stylus at InkLine Store (5%)</button>
     </section>
 
-    <section class="card">
+    <section data-tab="home" class="card">
       <h2>New goal</h2>
-      <input id="goalText" placeholder="e.g. I want $1,200 for a trip by August">
-      <button id="goalBtn" class="btn ghost">Plan it</button>
+      <div class="sentence">I want <span class="money"><b>$</b><input id="gAmount" type="number" min="1" value="600"></span>
+        by <input id="gDate" type="date"> for <input id="gPurpose" placeholder="a design conference" value="a design conference"></div>
+      <div class="row"><label class="small muted">Priority <select id="gPriority"><option value="1">High</option><option value="2" selected>Normal</option><option value="3">Low</option></select></label></div>
+      <div class="row"><button id="gCheck" class="btn ghost">Check the plan</button><button id="gSave" class="btn">Save goal</button></div>
       <p class="hint" id="goalOut"></p>
     </section>
 
-    <section class="card">
-      <h2>What if…</h2>
-      <div class="row"><span>I spend $</span><input id="wiPrice" type="number" value="1400"></div>
-      <button id="wiBtn" class="btn ghost">Simulate</button>
-      <p class="hint" id="wiOut"></p>
-    </section>
-
-    <section class="card">
-      <h2>Monthly report</h2>
-      <button id="reportBtn" class="btn ghost">Explain my month</button>
-      <p class="hint" id="reportOut"></p>
-    </section>
-
-    <section class="card wide">
+    <section data-tab="home" class="card wide">
       <h2>Income passport <label class="switch"><input type="checkbox" id="passportToggle"><span>on</span></label></h2>
       <p class="muted small">Facts only, from PayPal commercial payments by verified clients. You choose the period; the most recent months are always used.</p>
       <div class="row">
@@ -96,14 +102,102 @@
       <div id="ppOut"></div>
     </section>
 
-    <section class="card wide">
+    <section data-tab="home" class="card wide">
       <h2>Activity</h2>
       <ul id="activity" class="activity"></ul>
       <button id="reset" class="btn link">Reset demo</button>
     </section>
+
+    <!-- ================= ANALYSIS TAB ================= -->
+    <section data-tab="analysis" class="card wide" id="runwayCard">
+      <h2>Runway risk check <span class="muted small">1,000 simulated futures from your own income history</span></h2>
+      <div class="row"><label class="small muted">Look ahead <select id="rwMonths"><option value="3">3 months</option><option value="6" selected>6 months</option><option value="12">12 months</option></select></label>
+        <button id="rwBtn" class="btn">Run the check</button></div>
+      <div id="rwOut"></div>
+      <p class="hint" id="rwText"></p>
+      <p class="muted small" id="rwMethod"></p>
+    </section>
+    <section data-tab="analysis" class="card wide">
+      <h2>Reports</h2>
+      <div class="row">
+        <select id="repType"><option value="income">Income</option><option value="clients">Clients &amp; reliability</option><option value="cashflow">Cash flow</option><option value="taxes">Taxes</option><option value="goals">Goals</option></select>
+        <select id="repPeriod"><option value="1">Last month</option><option value="3" selected>Last 3 months</option><option value="6">Last 6 months</option></select>
+        <button id="reportBtn" class="btn ghost">Show &amp; explain</button></div>
+      <div id="repStats"></div>
+      <div id="repTable"></div>
+      <p class="hint" id="reportOut"></p>
+      <div class="consult">
+        <div class="small muted">AI consultant · education only</div>
+        <textarea id="askText" rows="2" placeholder="e.g. Should I build my emergency fund before saving for a laptop?"></textarea>
+        <button id="askBtn" class="btn">Ask the AI consultant</button>
+        <p class="hint" id="askOut"></p>
+      </div>
+    </section>
+    <section data-tab="analysis" class="card">
+      <h2>What if…</h2>
+      <div class="wi">
+        <label>I spend now <span class="money"><b>$</b><input id="wiPrice" type="number" min="0" value="1400"></span></label>
+        <label>I earn more each month <span class="money"><b>$</b><input id="wiEarn" type="number" min="0" value="0"></span></label>
+        <label>I put aside each month <span class="money"><b>$</b><input id="wiInvest" type="number" min="0" value="100"></span></label>
+        <label>in <select id="wiOption"></select></label>
+        <label>for <span class="money"><input id="wiMonths" type="number" min="1" max="120" value="12"><b>months</b></span></label>
+      </div>
+      <button id="wiBtn" class="btn ghost">Simulate</button>
+      <div id="wiResult"></div>
+      <p class="hint" id="wiOut"></p>
+      <p class="muted small" id="wiSource"></p>
+    </section>
+
+
+    <section data-tab="analysis" class="card wide">
+      <h2>Save &amp; invest: learn and compare <span class="muted small">bar = interest earned · tap an option to learn</span></h2>
+      <p class="muted small">Education only, not advice. Rates from official sources, with dates.</p>
+      <div class="wi">
+        <label>I put aside each month <span class="money"><b>$</b><input id="ivMonthly" type="number" min="0" value="100"></span></label>
+        <label>for <span class="money"><input id="ivMonths" type="number" min="1" max="120" value="12"><b>months</b></span></label>
+        <label class="small"><input type="checkbox" id="ivStart"> start with my emergency fund</label>
+      </div>
+      <button id="ivBtn" class="btn ghost">Compare options</button>
+      <div id="ivOut"></div>
+    </section>
+
+    <section data-tab="analysis" class="card" id="taxCard">
+      <h2>Taxes <span class="muted small">optional · estimates</span></h2>
+      <div id="taxBody"></div>
+    </section>
+    <section data-tab="analysis" class="card wide">
+      <h2>PayPal transactions <span class="muted small">sort, filter, see what counts for the passport · powered by AG Grid</span></h2>
+      <div id="txGrid" class="ag-theme-quartz tx-grid"></div>
+    </section>
+
+
+    <!-- ================= PROFILE TAB ================= -->
+    <section data-tab="profile" class="card wide">
+      <h2>Your business &amp; taxes <label class="switch"><input type="checkbox" id="tpEnabled"><span>set money aside for taxes</span></label></h2>
+      <p class="muted small">Optional. Tell SteadPal about your work so estimates fit you. You choose the rates; SteadPal never guesses your tax bill.</p>
+      <div class="form2">
+        <label>Business type<input id="tpBusiness" placeholder="e.g. Freelance graphic design"></label>
+        <label>Tax type<select id="tpEntity"><option>Sole proprietor</option><option>Single-member LLC</option><option>S corporation</option><option>Partnership</option><option>W-2 plus side income</option><option>Not sure</option></select></label>
+        <label>State<input id="tpState" maxlength="20" placeholder="e.g. CA"></label>
+        <label>Federal set-aside %<input id="tpFed" type="number" min="0" max="60" step="0.5"></label>
+        <label>State set-aside %<input id="tpStateRate" type="number" min="0" max="20" step="0.5"></label>
+        <label>Payment dates<input id="tpDates" placeholder="2026-06-15, 2026-09-15"></label>
+      </div>
+      <p class="muted small">Tip: self-employment tax alone is 15.3% (Social Security and Medicare) on most of your net earnings, before income tax. Federal estimated payments are usually due Apr 15, Jun 15, Sep 15 and Jan 15. Your state may differ.</p>
+      <button id="tpSave" class="btn">Save</button> <span class="small muted" id="tpMsg"></span>
+    </section>
+
+    <section data-tab="profile" class="card">
+      <h2>Round-ups <label class="switch"><input type="checkbox" id="ruEnabled"><span>on</span></label></h2>
+      <p class="muted small">Optional. When you pay with PayPal, the spare change goes to the goal that needs it most.</p>
+      <label class="small">Round up to the next <select id="ruStep"><option value="1">$1</option><option value="5">$5</option><option value="10">$10</option></select></label>
+      <p class="hint" id="ruOut"></p>
+    </section>
   </main>
 
   <footer class="muted small">Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
+  <div id="toast" class="toast" hidden></div>
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

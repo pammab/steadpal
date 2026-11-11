@@ -59,4 +59,19 @@ const createPayout = (amount, receiverEmail, note) =>
 const searchTransactions = (startDate, endDate) =>
   call("GET", `/v1/reporting/transactions?start_date=${startDate}T00:00:00-0000&end_date=${endDate}T23:59:59-0000&fields=all&page_size=100`);
 
-module.exports = { enabled, createOrder, captureOrder, createPayout, searchTransactions, BASE };
+// Invoicing v2: create a real invoice for the overdue amount, send it, then send reminders.
+async function createInvoice({ amount, itemName, note, recipientEmail, invoicerName }) {
+  const r = await call("POST", "/v2/invoicing/invoices", {
+    detail: { currency_code: "USD", note: String(note || "").slice(0, 4000) },
+    invoicer: { name: { full_name: invoicerName || "SteadPal demo" } },
+    primary_recipients: [{ billing_info: { email_address: recipientEmail } }],
+    items: [{ name: itemName || "Design services", quantity: "1", unit_amount: { currency_code: "USD", value: Number(amount).toFixed(2) } }],
+  });
+  return r.id || String(r.href || "").split("/").pop();
+}
+const sendInvoice = (id, subject, note) =>
+  call("POST", `/v2/invoicing/invoices/${encodeURIComponent(id)}/send`, { subject, note: String(note || "").slice(0, 4000), send_to_invoicer: false });
+const remindInvoice = (id, subject, note) =>
+  call("POST", `/v2/invoicing/invoices/${encodeURIComponent(id)}/remind`, { subject, note: String(note || "").slice(0, 4000) });
+
+module.exports = { createInvoice, sendInvoice, remindInvoice, enabled, createOrder, captureOrder, createPayout, searchTransactions, BASE };

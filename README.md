@@ -22,12 +22,22 @@ Built for freelancers, useful for anyone with a goal.
 | --- | --- | --- |
 | Smart split | A client pays through PayPal → money is split into taxes, weekly pay reserve, emergency fund and goals, with a one-sentence explanation | Core |
 | Weak-month forecast | "Your retainer ended and a $1,600 invoice is 21 days late. Next month looks like $1,700–$3,950." | Core |
-| Goals in plain language | "I want $1,200 for a trip by August" → a goal with an amount and a deadline (asks for missing facts) | Core |
+| Goals | "I want $___ by ___ for ___" with a priority → monthly amount needed, whether it fits after higher-priority goals, and when it would fit | Core |
 | Partner cashback (Channel3) | Search real products through Channel3, pay with PayPal, and the cashback (a share of the store commission) goes to the goal most behind, not to the wallet | Core |
-| What-if simulator | "If I buy a $1,400 laptop, my emergency fund is delayed about 3 months" | Core |
-| Monthly report | Plain-language summary of income, irregularity, reserve and goals | Core |
+| What-if simulator | I spend $X now · I earn $Y more · I put $Z a month into a savings account, CD, 3-month Treasury bill or PYUSD for N months, using official rates with source and date (`data/rates.json`: FDIC, Federal Reserve H.15, PayPal) | Core |
+| Report + AI consultant | Last month / 3 / 6 months: income, PayPal share, client concentration, reserve; plus an AI consultant that answers questions using only the user's numbers (education only) | Core |
 | Weekly pay | A steady weekly amount from the user's own reserve (PayPal Payouts) | Opt-in |
-| Income passport | One-page facts from PayPal commercial payments, signed, with a verification code and an expiring link | Opt-in |
+| Weak-month alert | Warns before a low month, names the reasons (ended retainer, late invoice) and shows how many weeks of pay the reserve covers | Core |
+| Late-invoice reminder | The AI drafts a polite reminder; the user edits it and sends it. With PayPal keys it uses the PayPal Invoicing API (create, send, remind) | Core |
+| Payday pop-up | When a PayPal payment or cashback arrives, a pop-up shows exactly where each dollar went | Core |
+| PYUSD option | The emergency pot shows what it could earn if the user opts in to hold it in PYUSD (reward rate from PayPal, variable, not FDIC-insured) | Opt-in |
+| Transactions table | Every payment in a sortable, filterable AG Grid table, with a "counts for passport" column | Core |
+| Runway risk check | 1,000 simulated futures from the user's own income history: the chance the weekly pay stays covered, a typical and a bad case, and the highest weekly pay that stays 95% safe | Analysis |
+| Reports | Income, clients and reliability (average days late, income share), cash flow, taxes and goals, for 1, 3 or 6 months, each explained by the AI | Analysis |
+| Save and invest education | Compares the PayPal balance, savings, a 12-month CD, Treasury bills and PYUSD at official rates: projected interest, protection, access and risk | Analysis |
+| Tax profile | Business type, tax type, state, user-chosen rates and payment dates; on a due date the user chooses: mark paid, paid part, move some to the emergency fund, or keep | Optional |
+| Round-ups | Spare change of a PayPal purchase (to the next $1, $5 or $10) goes to the goal that needs it most | Optional |
+| Income passport | A signed one-page certificate (download as PDF) with facts from PayPal commercial payments, a verification code and an expiring link | Opt-in |
 
 ### Why PayPal wins
 - More reasons to click the PayPal button (partner cashback that builds your future).
@@ -110,6 +120,7 @@ Set these environment variables (locally or in Render):
 | `ANTHROPIC_API_KEY` | console.anthropic.com |
 | `STEADPAL_MODEL` | Optional, Claude model name |
 | `CHANNEL3_API_KEY` | trychannel3.com → Dashboard → API keys |
+| `PAYPAL_INVOICE_RECIPIENT` | Optional. Email of a sandbox personal account that receives real PayPal invoices and reminders (defaults to `PAYPAL_PAYOUT_RECEIVER`) |
 | `CASHBACK_RATE` | Optional, share of the price returned as cashback (default 0.03) |
 | `PASSPORT_SECRET` | Any long random string (signs income passports) |
 
@@ -137,6 +148,12 @@ New → Web Service → connect this repo → Build command: *(none)* → Start 
 
 ## Roadmap
 Pots that earn yield (PayPal Savings / PYUSD), private freelancer–diaspora FX matching, savings circles, emerging markets with licensed partners.
+
+## Partner technologies
+
+- **Render**: hosting (auto-deploy from GitHub).
+- **Channel3**: real product search for partner cashback.
+- **AG Grid** (Community, loaded from jsDelivr): the transactions table. If the CDN is unreachable, a plain table is shown.
 
 ## License
 MIT. See `LICENSE`.
