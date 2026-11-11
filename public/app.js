@@ -20,13 +20,26 @@ const SOURCES = {
   fdic: { text: "FDIC insurance covers $250,000 per depositor, per FDIC-insured bank, for each account ownership category.", src: "FDIC, Understanding Deposit Insurance", url: "https://www.fdic.gov/resources/deposit-insurance/understanding-deposit-insurance" },
   pyusd: { text: "PYUSD rewards are variable, for eligible U.S. users who opt in. PYUSD is not FDIC-insured.", src: "PayPal, PYUSD Rewards", url: "https://www.paypal.com/us/cshelp/article/what-are-pyusd-rewards-help1247" },
 };
+SOURCES.why = { html: `<div class="why"><b>Why SteadPal?</b>
+  <ol type="A">
+    <li>Proves your PayPal income with a <b>signed income passport</b>.</li>
+    <li>Better financial organization:
+      <ol>
+        <li>Splits every PayPal payment into pots: taxes, income reserve, emergency fund, goals.</li>
+        <li>Pays you a steady income from your own reserve.</li>
+        <li>Analysis tools: forecasts, reports, what-if and a runway check.</li>
+      </ol></li>
+    <li>AI consultant, partner cashback and more.</li>
+  </ol>
+  <div class="muted small">Your money never leaves PayPal. Turn it off anytime.</div></div>` };
 const i = (key) => `<button type="button" class="i" data-src="${key}" aria-label="Source">i</button>`;
 document.addEventListener("click", (e) => {
   const b = e.target.closest(".i");
   const pop = $("srcPop");
   if (!b) { if (!e.target.closest("#srcPop")) pop.hidden = true; return; }
   const sdef = SOURCES[b.dataset.src]; if (!sdef) return;
-  pop.innerHTML = `<div>${sdef.text}</div><a href="${sdef.url}" target="_blank" rel="noopener">${sdef.src} ↗</a>`;
+  pop.innerHTML = sdef.html || `<div>${sdef.text}</div><a href="${sdef.url}" target="_blank" rel="noopener">${sdef.src} ↗</a>`;
+  pop.classList.toggle("wide", Boolean(sdef.html));
   const r = b.getBoundingClientRect();
   pop.hidden = false;
   pop.style.top = window.scrollY + r.bottom + 6 + "px";

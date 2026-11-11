@@ -291,3 +291,7 @@ body { padding-bottom: 92px; }
 body { padding-bottom: 0; }
 .toast { bottom: 20px; }
 @media (max-width:640px){ body { padding-bottom: 0; } .toast { bottom: 12px; } }
+
+.sp-switch { display:inline-flex; align-items:center; gap:6px; }
+.srcpop.wide { width:330px; }
+.why ol { margin:6px 0 6px; padding-left:20px; } .why ol ol { padding-left:18px; margin:4px 0; } .why li { margin:3px 0; }
