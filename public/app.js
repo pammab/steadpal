@@ -77,17 +77,15 @@ function render(s, flash = []) {
     const pct = g ? Math.min(100, Math.round((v / g.target) * 100)) : null;
     const name = g ? g.name : POT_NAMES[k] || k;
     const reserveTarget = k === "salaryReserve" ? s.salary.weekly * (s.settings.reserveWeeks || 4) : null;
-    const editBtn = k === "tax" ? `<span class="lock" title="Follows your tax settings in Profile">🔒</span>` : `<button class="potedit" data-pot="${k}" title="Edit or delete">✎</button>`;
-    return `<div class="pot ${flash.includes(k) ? "flash" : ""}" id="pot-${k}"><div class="name">${name} ${editBtn}</div>
+    return `<div class="pot ${flash.includes(k) ? "flash" : ""}" id="pot-${k}"><div class="name">${name}</div>
       <div class="val">${usd(v)}</div>
       ${g ? `<div class="bar"><i style="width:${pct}%"></i></div><div class="muted small">${pct}% of ${usd(g.target)} · by ${g.deadline || "—"}</div>` : ""}
       ${reserveTarget ? `<div class="bar"><i style="width:${Math.min(100, Math.round((v / reserveTarget) * 100))}%"></i></div><div class="muted small">target ${usd(reserveTarget)} = ${s.settings.reserveWeeks || 4} weeks of pay</div>` : ""}
       ${k === "tax" ? `<div class="muted small">${s.tax.enabled ? Math.round(s.tax.rate * 100) + "% of each payment" : "off"}</div>` : ""}
       ${k === "emergency" ? `<div class="muted small">Common guide: 3+ months of expenses ${i("emergency")}</div>` : ""}
-      ${k === "emergency" && pyusdRate ? `<div class="pyusd small">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}% ${i("pyusd")}</div>` : ""}
-      <div class="poteditor" id="pe-${k}" hidden></div></div>`;
+      ${k === "emergency" && pyusdRate ? `<div class="pyusd small">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}% ${i("pyusd")}</div>` : ""}</div>`;
   }).join("");
-  document.querySelectorAll(".potedit").forEach((b) => (b.onclick = () => openPotEditor(b.dataset.pot)));
+  if (!$("potManager").hidden) renderPotManager(potManagerKey);
   if (!s.wallet.enabled) $("pots").innerHTML = `<div class="w-off">SteadPal is off: payments go straight to your balance (${usd(s.wallet.available)} available). <button class="btn small-btn" id="potsOn">Turn SteadPal on</button></div>`;
   if ($("potsOn")) $("potsOn").onclick = () => openSetup();
 
@@ -214,33 +212,50 @@ $("txSearch").oninput = () => filterTx($("txSearch").value);
 $("txClear").onclick = () => filterTx("");
 
 // ---------- Pots: edit or delete (Taxes is locked) ----------
-function openPotEditor(k) {
-  const box = $("pe-" + k);
-  if (!box.hidden) { box.hidden = true; return; }
+// One "Edit pots" button: pick a pot, then edit, duplicate or delete it. Taxes follows Profile.
+let potManagerKey = null;
+$("potEditBtn").onclick = () => {
+  const m = $("potManager");
+  m.hidden = !m.hidden;
+  if (!m.hidden) renderPotManager(potManagerKey || Object.keys(S.pots).find((k) => k !== "tax"));
+};
+function renderPotManager(k) {
+  const m = $("potManager");
+  const keys = Object.keys(S.pots);
+  if (!keys.includes(k)) k = keys.find((x) => x !== "tax");
+  potManagerKey = k;
+  const nameOf = (x) => (S.goals.find((g) => g.id === x) || {}).name || POT_NAMES[x] || x;
   const g = S.goals.find((x) => x.id === k);
-  if (k === "salaryReserve") {
-    box.innerHTML = `<label class="small">Keep <input type="number" id="pe-weeks" min="1" max="12" value="${S.settings.reserveWeeks || 4}"> weeks of pay ready</label>
-      <div class="row"><button class="btn small-btn" id="pe-save">Save</button><button class="btn link small-btn" id="pe-del">Delete (turns weekly pay off)</button></div>`;
-  } else {
-    box.innerHTML = `<label class="small">Name <input id="pe-name" value="${g.name}" maxlength="40"></label>
+  let form = "";
+  if (!k) form = `<p class="small muted">No pots yet. Create one with New pot.</p>`;
+  else if (k === "salaryReserve") form = `<label class="small">Keep <input type="number" id="pe-weeks" min="1" max="12" value="${S.settings.reserveWeeks || 4}"> weeks of pay ready</label>`;
+  else form = `<div class="pm-grid"><label class="small">Name <input id="pe-name" value="${g.name}" maxlength="40"></label>
       <label class="small">Target <span class="money"><b>$</b><input id="pe-target" type="number" min="1" value="${g.target}"></span></label>
       <label class="small">By <input id="pe-date" type="date" value="${g.deadline}"></label>
-      <label class="small">Priority <select id="pe-pri"><option value="1">High</option><option value="2">Normal</option><option value="3">Low</option></select></label>
-      ${k === "emergency" ? `<div class="chips">${emergencyChips()}</div>` : ""}
-      <div class="row"><button class="btn small-btn" id="pe-save">Save</button><button class="btn link small-btn" id="pe-del">Delete pot</button></div>`;
-    box.querySelector("#pe-pri").value = String(g.priority || 2);
-    box.querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => (box.querySelector("#pe-target").value = c.dataset.fill)));
-  }
-  box.hidden = false;
-  box.querySelector("#pe-save").onclick = async () => {
-    const body = k === "salaryReserve" ? { id: k, reserveWeeks: box.querySelector("#pe-weeks").value }
-      : { id: k, name: box.querySelector("#pe-name").value, target: box.querySelector("#pe-target").value, deadline: box.querySelector("#pe-date").value, priority: box.querySelector("#pe-pri").value };
-    try { render(await api("POST", "/api/pots/update", body), [k]); profileLoaded = false; renderProfile(S); } catch (e) { alert(e.message); }
+      <label class="small">Priority <select id="pe-pri"><option value="1">High</option><option value="2">Normal</option><option value="3">Low</option></select></label></div>
+      ${k === "emergency" ? `<div class="chips">${emergencyChips()}</div>` : ""}`;
+  m.innerHTML = `<div class="row"><label class="small"><b>Pot</b> <select id="pm-pick">${keys.map((x) => `<option value="${x}" ${x === k ? "selected" : ""} ${x === "tax" ? "disabled" : ""}>${nameOf(x)}${x === "tax" ? " (follows your tax settings in Profile)" : ""}</option>`).join("")}</select></label>
+      <button class="btn link small-btn" id="pm-close">Close</button></div>
+    ${form}
+    <div class="row">${k ? `<button class="btn small-btn" id="pe-save">Save</button>` : ""}
+      ${g ? `<button class="btn ghost small-btn" id="pe-dup">Duplicate</button>` : ""}
+      ${k ? `<button class="btn link small-btn" id="pe-del">${k === "salaryReserve" ? "Delete (turns weekly pay off)" : "Delete pot"}</button>` : ""}
+      <button class="btn ghost small-btn" id="pe-new">+ New pot</button></div>`;
+  if (g) m.querySelector("#pe-pri").value = String(g.priority || 2);
+  m.querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => (m.querySelector("#pe-target").value = c.dataset.fill)));
+  $("pm-pick").onchange = (e) => renderPotManager(e.target.value);
+  $("pm-close").onclick = () => (m.hidden = true);
+  $("pe-new").onclick = () => { $("gPurpose").focus(); $("gPurpose").closest(".card").scrollIntoView({ behavior: "smooth", block: "center" }); };
+  if ($("pe-save")) $("pe-save").onclick = async () => {
+    const body = k === "salaryReserve" ? { id: k, reserveWeeks: m.querySelector("#pe-weeks").value }
+      : { id: k, name: m.querySelector("#pe-name").value, target: m.querySelector("#pe-target").value, deadline: m.querySelector("#pe-date").value, priority: m.querySelector("#pe-pri").value };
+    try { render(await api("POST", "/api/pots/update", body), [k]); profileLoaded = false; prefsLoaded = false; renderProfile(S); } catch (e) { alert(e.message); }
   };
-  box.querySelector("#pe-del").onclick = async () => {
+  if ($("pe-dup")) $("pe-dup").onclick = async () => { const r = await api("POST", "/api/pots/duplicate", { id: k }); potManagerKey = r.newId; render(r.state, [r.newId]); };
+  if ($("pe-del")) $("pe-del").onclick = async () => {
     const note = k === "emergency" ? "SteadPal uses this pot first in weak months. " : "";
-    if (!confirm(`${note}Delete this pot? Its ${usd(S.pots[k] || 0)} stays in your PayPal balance.`)) return;
-    render(await api("POST", "/api/pots/delete", { id: k }));
+    if (!confirm(`${note}Delete "${nameOf(k)}"? Its ${usd(S.pots[k] || 0)} stays in your PayPal balance.`)) return;
+    potManagerKey = null; render(await api("POST", "/api/pots/delete", { id: k }));
   };
 }
 // Quick-fill suggestions for the emergency fund: the user still decides.
@@ -343,20 +358,46 @@ function renderWallet(s) {
     ["4", "Spend as usual", "Pay with PayPal, use the PayPal debit card, or transfer to your bank."],
   ].map(([n, t, d]) => `<div class="w-step"><b>${n}</b><div><div class="w-st">${t}</div><div class="small muted">${d}</div></div></div>`).join("");
 }
+function goalRow() {
+  const d = new Date(S.user.today); d.setMonth(d.getMonth() + 6);
+  const row = document.createElement("div");
+  row.className = "sentence su-goal";
+  row.innerHTML = `I want <span class="money"><b>$</b><input type="number" min="1" placeholder="1,200" data-g="target"></span> by <input type="date" value="${d.toISOString().slice(0, 10)}" data-g="deadline"> for <input placeholder="a new laptop" data-g="name"> <button type="button" class="btn link small-btn" title="Remove">×</button>`;
+  row.querySelector("button").onclick = () => { row.remove(); $("suAddGoal").disabled = false; };
+  $("suGoals").appendChild(row);
+  $("suAddGoal").disabled = $("suGoals").children.length >= 5;
+}
+$("suAddGoal").onclick = () => goalRow();
 function openSetup() {
   buildPrefs($("setupForm"), S);
-  const d = new Date(S.user.today); d.setMonth(d.getMonth() + 6); $("suDate").value = d.toISOString().slice(0, 10);
+  $("suGoals").innerHTML = ""; goalRow(); $("suAddGoal").disabled = false;
+  const sn = S.potsSnapshot;
+  $("suRestore").innerHTML = sn && sn.total > 0 ? `<label class="restore"><input type="checkbox" id="suRestoreChk" checked> <span><b>Restore my last pots</b> (${usd(sn.total)} as of ${sn.date}: ${Object.entries(sn.pots).filter(([, v]) => v > 0).map(([k, v]) => `${(S.goals.find((g) => g.id === k) || {}).name || POT_NAMES[k] || k} ${usd(v)}`).join(", ")}). Money moves back from Available to spend, as far as it allows.</span></label>` : "";
   $("setup").hidden = false;
 }
 $("spEnabled").onchange = async (e) => {
   if (e.target.checked) { openSetup(); e.target.checked = false; return; }
-  if (!confirm("Turn SteadPal off? The money in your pots goes back to Available to spend. Your goals and settings are kept, and PayPal works exactly as before.")) { e.target.checked = true; return; }
+  e.target.checked = true;
+  const p = S.pots, risks = [];
+  if (S.tax.enabled) risks.push(`<b>Taxes:</b> ${p.tax ? `${usd(p.tax)} set aside for taxes becomes spending money, and n` : "N"}othing new is set aside for taxes. Estimated payments are still due${S.tax.nextDueDate ? ` (next: ${S.tax.nextDueDate})` : ""}.`);
+  if (S.settings.salaryEnabled) risks.push(`<b>Weekly pay stops:</b> no more ${usd(S.salary.weekly)} every week. In a weak month there is no reserve smoothing your income.`);
+  if (p.emergency) risks.push(`<b>Emergency cushion:</b> ${usd(p.emergency)} is no longer kept apart, so it is easy to spend by accident.`);
+  risks.push(`<b>Payments are no longer split:</b> cashback and round-ups go to your balance instead of your goals.`);
+  if (S.forecast.weak) risks.push(`<b>Timing:</b> SteadPal expects a weak month ahead.`);
+  $("offRisks").innerHTML = risks.map((r) => `<li>${r}</li>`).join("");
+  $("offSheet").hidden = false;
+};
+$("offCancel").onclick = () => ($("offSheet").hidden = true);
+$("offConfirm").onclick = async () => {
+  $("offSheet").hidden = true;
   render(await api("POST", "/api/steadpal/toggle", { enabled: false }));
+  toast("SteadPal is off", [["Pot values saved", "you can restore them"]]);
 };
 $("suCancel").onclick = () => { $("setup").hidden = true; renderWallet(S); };
 $("suSave").onclick = async () => {
   const body = { ...readPrefs($("setupForm")), finish: true };
-  if ($("suName").value && $("suAmt").value) body.goal = { name: $("suName").value, target: $("suAmt").value, deadline: $("suDate").value };
+  body.goals = [...document.querySelectorAll("#suGoals .su-goal")].map((r) => ({ target: r.querySelector('[data-g="target"]').value, deadline: r.querySelector('[data-g="deadline"]').value, name: r.querySelector('[data-g="name"]').value })).filter((g) => g.name && g.target);
+  if ($("suRestoreChk") && $("suRestoreChk").checked) body.restore = true;
   const r = await api("POST", "/api/steadpal/setup", body);
   $("setup").hidden = true; prefsLoaded = false; profileLoaded = false; render(r);
   toast("✅ SteadPal is on", [["Taxes", r.tax.enabled ? Math.round(r.tax.rate * 100) + "%" : "off"], ["Weekly pay", r.settings.salaryEnabled ? usd(r.salary.weekly) : "off"], ["Emergency target", r.goals.find((g) => g.id === "emergency") ? usd(r.goals.find((g) => g.id === "emergency").target) : "none"]]);
@@ -638,6 +679,49 @@ function renderOtherIncome(s) {
     : `<div class="muted small">Nothing added yet.</div>`;
   document.querySelectorAll("[data-oidel]").forEach((b) => (b.onclick = async () => render(await api("POST", "/api/income/self/delete", { ref: b.dataset.oidel }))));
 }
+// ---------- Import self-reported income (CSV file or pasted rows; no new connections) ----------
+$("oiTemplate").href = "data:text/csv;charset=utf-8," + encodeURIComponent("date,amount,source\n2026-04-20,300,Etsy shop\n2026-04-27,150,Cash client\n");
+function parseCsv(text) {
+  const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim());
+  if (!lines.length) return { rows: [], skipped: 0 };
+  const split = (l) => { const out = []; let cur = "", q = false; for (const ch of l) { if (ch === '"') q = !q; else if ((ch === "," || ch === ";" || ch === "\t") && !q) { out.push(cur.trim()); cur = ""; } else cur += ch; } out.push(cur.trim()); return out; };
+  let head = split(lines[0]).map((h) => h.toLowerCase());
+  const hasHeader = head.some((h) => /date|amount|credit|gross|net|source|description|name|from|payer|memo/.test(h));
+  const col = (re, dflt) => { const i = head.findIndex((h) => re.test(h)); return i >= 0 ? i : dflt; };
+  const di = hasHeader ? col(/date/, 0) : 0, ai = hasHeader ? col(/amount|credit|gross|net|deposit/, 1) : 1, si = hasHeader ? col(/source|from|payer|name|description|memo/, 2) : 2;
+  const toDate = (x) => {
+    x = (x || "").trim();
+    let m = x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+    m = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return `${y}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`; }
+    return "";
+  };
+  const toAmt = (x) => { x = String(x || "").replace(/[$,\s]/g, ""); const neg = /^\(.*\)$/.test(x) || x.startsWith("-"); const n = Number(x.replace(/[()\-]/g, "")); return neg ? -n : n; };
+  const rows = []; let skipped = 0;
+  for (const l of lines.slice(hasHeader ? 1 : 0)) {
+    const c = split(l), date = toDate(c[di]), amount = toAmt(c[ai]);
+    if (!date || !(amount > 0)) { skipped++; continue; }
+    rows.push({ date, amount, source: (c[si] || "Imported").slice(0, 40) });
+  }
+  return { rows, skipped };
+}
+let oiRows = [];
+function previewImport(text) {
+  const { rows, skipped } = parseCsv(text);
+  oiRows = rows;
+  $("oiImport").disabled = !rows.length;
+  $("oiPrev").innerHTML = rows.length
+    ? `<b>${rows.length}</b> payment${rows.length > 1 ? "s" : ""} ready${skipped ? `, ${skipped} line${skipped > 1 ? "s" : ""} skipped (no date, or money going out)` : ""}:` +
+      `<table class="tx">${rows.slice(0, 5).map((r) => `<tr><td>${r.date}</td><td>${r.source}</td><td>${usd(r.amount)}</td></tr>`).join("")}</table>${rows.length > 5 ? `<span class="muted">…and ${rows.length - 5} more</span>` : ""}`
+    : `No payments found. Use columns date, amount, source (a header row is fine; dates like 2026-04-20 or 4/20/2026).`;
+}
+$("oiFile").onchange = () => { const f = $("oiFile").files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { $("oiPaste").value = rd.result.slice(0, 20000); previewImport(rd.result); }; rd.readAsText(f); };
+$("oiPreview").onclick = () => previewImport($("oiPaste").value);
+$("oiImport").onclick = async () => {
+  const r = await api("POST", "/api/income/self/import", { rows: oiRows });
+  render(r.state); oiRows = []; $("oiImport").disabled = true; $("oiPaste").value = ""; $("oiFile").value = ""; $("oiPrev").innerHTML = "";
+  $("oiMsg").textContent = `Imported ${r.added}${r.skipped ? `, skipped ${r.skipped}` : ""}. Marked self-reported; never counted in the passport.`;
+};
+
 $("oiAdd").onclick = async () => {
   try {
     const r = await api("POST", "/api/income/self", { date: $("oiDate").value, amount: $("oiAmount").value, source: $("oiSource").value });

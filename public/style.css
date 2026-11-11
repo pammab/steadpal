@@ -246,3 +246,30 @@ h2.mt { margin-top:18px; }
 .support { font-size:15px; font-weight:600; color:#0b1f4d; margin:14px 0 0; padding:10px 12px; background:#eef6ff; border-radius:10px; text-align:center; }
 .support-f { color:#0b1f4d; }
 .support-h { font-size:12px; color:#7a879f; font-style:italic; margin-top:1px; }
+/* v14: pot manager, risks sheet, setup goals, import */
+.h-edit { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.potedit-main { margin-left:auto; border:1px solid #cdd8ee; background:#fff; color:#0b1f4d; border-radius:999px; padding:4px 12px; font-size:13px; font-weight:600; cursor:pointer; }
+.potedit-main:hover { border-color:#2470e6; color:#2470e6; }
+.potmanager { border:1px dashed #9db4e0; background:#f6f9ff; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-direction:column; gap:8px; }
+.potmanager select, .potmanager input { font:inherit; font-size:13px; padding:5px 7px; border:1px solid #cdd8ee; border-radius:6px; }
+.pm-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+.pm-grid label { display:flex; flex-direction:column; gap:3px; }
+.sheet.narrow { max-width:520px; }
+.risks { margin:4px 0 10px; padding-left:18px; font-size:14px; line-height:1.5; color:#3b2a0a; }
+.risks li { margin:6px 0; }
+.restore { display:flex; gap:8px; align-items:flex-start; font-size:13px; background:#eef6ff; border-radius:10px; padding:10px 12px; margin:6px 0 10px; }
+.su-goal { margin:6px 0; }
+.oi-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:8px 0; }
+.oi-grid textarea { width:100%; box-sizing:border-box; font:13px ui-monospace, Menlo, monospace; border:1px solid #cdd8ee; border-radius:8px; padding:8px; margin:6px 0; }
+@media (max-width:760px){ .pm-grid, .oi-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:640px){ .pm-grid, .oi-grid { grid-template-columns:1fr; } }
+
+/* header lockup: SteadPal + tagline / slogan / support line */
+.lockup { gap:14px; }
+.lockup .logo { width:58px; height:58px; }
+.lk-1 { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.lockup .brand { font-size:30px; font-weight:800; letter-spacing:-0.03em; color:#0b1f4d; line-height:1.05; }
+.lockup .tag { font-size:15px; color:#5b6b8a; margin:0; }
+.lockup .slogan { font-size:17px; font-weight:800; color:#2470e6; margin-top:3px; }
+.lockup .support-h { font-size:14px; color:#6b7893; font-style:italic; margin-top:2px; }
+@media (max-width:640px){ .lockup .logo { width:44px; height:44px; } .lockup .brand { font-size:24px; } .lockup .tag { font-size:13px; } .lockup .slogan { font-size:15px; } }

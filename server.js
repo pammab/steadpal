@@ -105,6 +105,7 @@ function state() {
     activity: activity.slice(0, 12),
     tax: A.taxStatus(data),
     suggestions: suggestions(),
+    potsSnapshot: data.potsSnapshot || null,
     wallet: { available: data.available || 0, inPots: Object.values(data.pots).reduce((a, b) => a + b, 0), enabled: data.settings.steadpalEnabled !== false, onboarded: Boolean(data.settings.onboarded) },
     otherIncome: data.transactions.filter((t) => t.type === "self_reported"),
     rates: { asOf: RATES_META.lastRefresh, auto: data.settings.ratesAuto || "weekly" },
@@ -258,6 +259,8 @@ const routes = {
   "POST /api/steadpal/toggle": async (b) => {
     if (b.enabled === false) {
       const inPots = Object.values(data.pots).reduce((a, x) => a + x, 0);
+      // Remember the last pot values so the user can restore them later.
+      data.potsSnapshot = { date: data.user.today, pots: { ...data.pots }, salaryEnabled: data.settings.salaryEnabled, total: money(inPots) };
       data.available = money((data.available || 0) + inPots);
       for (const k of Object.keys(data.pots)) data.pots[k] = 0;
       data.settings.steadpalEnabled = false; data.settings.salaryEnabled = false;
@@ -297,10 +300,24 @@ const routes = {
     st.allocation = st.allocation || {};
     if (b.keepAvailablePct !== undefined) st.allocation.keepAvailablePct = Math.min(0.9, Math.max(0, Number(b.keepAvailablePct) || 0));
     if (["available", "emergency", "goals"].includes(b.leftover)) st.allocation.leftover = b.leftover;
-    if (b.goal && b.goal.name && Number(b.goal.target) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(b.goal.deadline || "") && b.goal.deadline > data.user.today) {
-      const id = `goal-${Date.now()}`;
-      data.goals.push({ id, name: String(b.goal.name).slice(0, 40), target: Math.round(Number(b.goal.target)), deadline: b.goal.deadline, pot: id, priority: 2 });
+    // Up to 5 goals at setup; each becomes a pot.
+    const goals = (Array.isArray(b.goals) ? b.goals : b.goal ? [b.goal] : []).slice(0, 5);
+    goals.forEach((g, n) => {
+      if (!(g && g.name && Number(g.target) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(g.deadline || "") && g.deadline > data.user.today)) return;
+      const id = `goal-${Date.now()}-${n}`;
+      data.goals.push({ id, name: String(g.name).slice(0, 40), target: Math.round(Number(g.target)), deadline: g.deadline, pot: id, priority: [1, 2, 3].includes(Number(g.priority)) ? Number(g.priority) : 2 });
       data.pots[id] = 0;
+    });
+    // Restore the pot values saved when SteadPal was switched off, as far as the available balance allows.
+    if (b.restore && data.potsSnapshot) {
+      const snap = data.potsSnapshot.pots;
+      const want = Object.entries(snap).filter(([k]) => k in data.pots || k === "salaryReserve" || data.goals.some((g) => g.pot === k));
+      const total = want.reduce((a, [, v]) => a + v, 0);
+      const ratio = total > 0 ? Math.min(1, (data.available || 0) / total) : 0;
+      for (const [k, v] of want) { const amt = money(v * ratio); data.pots[k] = money((data.pots[k] || 0) + amt); data.available = money(data.available - amt); }
+      if (data.potsSnapshot.salaryEnabled && b.weeklyPay !== "off") data.settings.salaryEnabled = true;
+      log("steadpal", ratio < 1 ? `Pots restored to ${Math.round(ratio * 100)}% of their ${data.potsSnapshot.date} values (not enough available balance for all of it).` : `Pots restored to their values from ${data.potsSnapshot.date}.`);
+      data.potsSnapshot = null;
     }
     if (b.finish) { st.onboarded = true; st.steadpalEnabled = true; log("steadpal", "SteadPal is set up with your choices. You can change them anytime in Profile."); }
     return [200, state()];
@@ -518,6 +535,21 @@ const routes = {
     log("income", `Self-reported income added: $${amount} from ${source} (${date}). Not verified by PayPal.`);
     return [200, state()];
   },
+  // Import self-reported income from a CSV the user exported elsewhere (bank, Etsy, Venmo...). No new connections.
+  "POST /api/income/self/import": async (b) => {
+    const rows = (Array.isArray(b.rows) ? b.rows : []).slice(0, 500);
+    let added = 0; const skipped = [];
+    for (const r of rows) {
+      const amount = Math.round(Number(r.amount) * 100) / 100, date = String(r.date || ""), source = String(r.source || "Imported").trim().slice(0, 40) || "Imported";
+      if (!(amount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date > data.user.today) { skipped.push(r); continue; }
+      const id = "self-" + source.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      if (!data.payers.find((p) => p.id === id)) data.payers.push({ id, name: source, verified: false, linkedToUser: false, accountAgeDays: null });
+      data.transactions.push({ date, amount, payer: id, channel: "manual", type: "self_reported", ref: "sr-" + Date.now() + "-" + added });
+      added++;
+    }
+    log("income", `${added} self-reported payment${added === 1 ? "" : "s"} imported${skipped.length ? `, ${skipped.length} skipped (no date, a future date or not an amount received)` : ""}. Not verified by PayPal.`);
+    return [200, { added, skipped: skipped.length, state: state() }];
+  },
   "POST /api/income/self/delete": async (b) => {
     data.transactions = data.transactions.filter((t) => t.ref !== b.ref);
     return [200, state()];
@@ -551,6 +583,15 @@ const routes = {
     }
     log("pot", `Pot deleted. Its $${amount} stays in your PayPal balance.`);
     return [200, state()];
+  },
+  "POST /api/pots/duplicate": async (b) => {
+    const g = data.goals.find((x) => x.id === b.id);
+    if (!g) return [400, { error: "Only goal pots can be duplicated" }];
+    const id = `goal-${Date.now()}`;
+    data.goals.push({ id, name: `${g.name} (copy)`.slice(0, 40), target: g.target, deadline: g.deadline, pot: id, priority: g.priority ?? 2 });
+    data.pots[id] = 0;
+    log("pot", `"${g.name}" duplicated. The copy starts at $0.`);
+    return [200, { newId: id, state: state() }];
   },
   "POST /api/pots/create": async (b) => {
     const name = String(b.name || "").trim().slice(0, 40), target = Math.round(Number(b.target));

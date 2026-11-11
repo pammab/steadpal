@@ -11,9 +11,8 @@
 </head>
 <body>
   <header class="top">
-    <div class="brandrow"><img src="/logo.svg" alt="" class="logo"><div>
-      <div class="brand">SteadPal</div>
-      <div class="tag">The paycheck freelancers never had · a feature concept for PayPal</div>
+    <div class="brandrow lockup"><img src="/logo.svg" alt="" class="logo"><div>
+      <div class="lk-1"><span class="brand">SteadPal</span><span class="tag">The paycheck freelancers never had</span></div>
       <div class="slogan">Click PayPal. Build your future.</div>
       <div class="support-h">Every dollar through PayPal works for you.</div>
     </div></div>
@@ -52,7 +51,6 @@
       <div class="w-bar" id="wBar"></div>
       <div id="wList"></div>
       <div class="w-off" id="wOff" hidden>SteadPal is off. PayPal works exactly as before: every payment is simply added to your balance. Turn it on anytime; your goals and settings are kept.</div>
-      <p class="support">Every dollar through PayPal works for you.</p>
       <h3 class="w-h3">How a payment flows <span class="muted small">(it never leaves your Wallet)</span></h3>
       <div class="w-flow" id="wFlow"></div>
       <div class="row"><button id="wSetup" class="btn ghost">Change how SteadPal splits my money</button><button id="wHome" class="btn link">Open SteadPal</button></div>
@@ -62,11 +60,13 @@
     <!-- ================= HOME ================= -->
     <div class="lrow rpots" data-tab="home">
     <section class="card">
-      <h2>Your pots <span class="muted small">labels over your PayPal balance · money never leaves your account · ✎ to edit</span></h2>
+      <h2 class="h-edit">Your pots <span class="muted small">labels over your PayPal balance · money never leaves your account</span>
+        <button id="potEditBtn" class="potedit-main" title="Edit pots">✎ Edit pots</button></h2>
+      <div id="potManager" class="potmanager" hidden></div>
       <div class="pots" id="pots"></div>
     </section>
     <section class="card">
-      <h2>New goal (pot)</h2>
+      <h2>New pot (New goal)</h2>
       <div class="sentence">I want <span class="money"><b>$</b><input id="gAmount" type="number" min="1" value="600"></span>
         by <input id="gDate" type="date"> for <input id="gPurpose" placeholder="a design conference" value="a design conference"></div>
       <div class="row"><label class="small muted">Priority <select id="gPriority"><option value="1">High</option><option value="2" selected>Normal</option><option value="3">Low</option></select></label></div>
@@ -116,6 +116,24 @@
       </div>
       <label class="small muted"><input type="checkbox" id="ppAsk" checked> Let viewers ask me about my main clients (I decide what to share)</label>
       <div id="ppOut"></div>
+    </section>
+    </div>
+
+    <div class="lrow r1" data-tab="home">
+    <section class="card">
+      <h2>Other income (self-reported)</h2>
+      <p class="muted small">Income outside PayPal (cash, bank transfers, other apps). Reports can include it and label it <b>self-reported</b>. It is never counted in the income passport, the same rule the passport uses for anything PayPal can't verify.</p>
+      <div class="oi-grid">
+        <div><div class="small"><b>Add one</b></div>
+          <div class="row"><input id="oiDate" type="date"><span class="money"><b>$</b><input id="oiAmount" type="number" min="1" placeholder="amount"></span><input id="oiSource" maxlength="40" placeholder="from (e.g. Etsy shop)"><button id="oiAdd" class="btn ghost small-btn">Add</button></div></div>
+        <div><div class="small"><b>Import many</b> <span class="muted">· a CSV file you exported from your bank or another app, or paste the rows</span></div>
+          <div class="row"><input id="oiFile" type="file" accept=".csv,text/csv,text/plain"><a id="oiTemplate" class="small" download="steadpal-income-template.csv">Download a template</a></div>
+          <textarea id="oiPaste" rows="3" placeholder="date,amount,source&#10;2026-04-20,300,Etsy shop&#10;2026-04-27,150,Cash client"></textarea>
+          <div class="row"><button id="oiPreview" class="btn ghost small-btn">Check rows</button><button id="oiImport" class="btn small-btn" disabled>Import</button></div>
+          <div id="oiPrev" class="small"></div></div>
+      </div>
+      <div id="oiList"></div>
+      <p class="small muted" id="oiMsg"></p>
     </section>
     </div>
 
@@ -276,12 +294,7 @@
       <button id="abSave" class="btn">Save answers</button> <span class="small muted" id="abMsg"></span>
     </section>
     <section class="card">
-      <h2>Other income (self-reported)</h2>
-      <p class="muted small">Income outside PayPal (cash, bank transfers, other apps). Reports can include it and label it <b>self-reported</b>. It is never counted in the income passport, the same rule the passport uses for anything PayPal can't verify.</p>
-      <div class="row"><input id="oiDate" type="date"><span class="money"><b>$</b><input id="oiAmount" type="number" min="1" placeholder="amount"></span><input id="oiSource" maxlength="40" placeholder="from (e.g. Etsy shop)"><button id="oiAdd" class="btn ghost small-btn">Add</button></div>
-      <div id="oiList"></div>
-      <p class="small muted" id="oiMsg"></p>
-      <h2 class="mt">Round-ups <label class="switch"><input type="checkbox" id="ruEnabled"><span>on</span></label></h2>
+      <h2>Round-ups <label class="switch"><input type="checkbox" id="ruEnabled"><span>on</span></label></h2>
       <p class="muted small">Optional. When you pay with PayPal, the spare change goes to the goal that needs it most.</p>
       <label class="small">Round up to the next <select id="ruStep"><option value="1">$1</option><option value="5">$5</option><option value="10">$10</option></select></label>
       <p class="hint" id="ruOut"></p>
@@ -290,15 +303,23 @@
 
   </main>
   <div id="srcPop" class="srcpop" hidden></div>
+  <div id="offSheet" class="modal" hidden><div class="sheet narrow">
+    <div class="sheet-head"><img src="/logo.svg" alt="" width="32"><div><b>Turn SteadPal off?</b><div class="muted small">Your choice. Here is what changes, so nothing surprises you.</div></div></div>
+    <ul class="risks" id="offRisks"></ul>
+    <p class="small">Your goals and settings are kept, and SteadPal saves your current pot values, so you can <b>restore them</b> when you turn it back on.</p>
+    <div class="row end"><button id="offCancel" class="btn">Keep SteadPal on</button><button id="offConfirm" class="btn ghost">Turn it off</button></div>
+  </div></div>
   <div id="setup" class="modal" hidden><div class="sheet">
     <div class="sheet-head"><img src="/logo.svg" alt="" width="32"><div><b>Set up SteadPal</b><div class="muted small">You decide how your money is split. Suggestions come from your PayPal history; every choice can be changed later in Profile.</div></div></div>
     <div id="setupForm"></div>
-    <div class="setup-goal"><div class="small"><b>A first goal</b> <span class="muted">(optional)</span></div>
-      <div class="sentence">I want <span class="money"><b>$</b><input id="suAmt" type="number" min="1" placeholder="1,200"></span> by <input id="suDate" type="date"> for <input id="suName" placeholder="a new laptop"></div></div>
+    <div id="suRestore"></div>
+    <div class="setup-goal"><div class="small"><b>Your goals</b> <span class="muted">(optional, up to 5; each becomes a pot)</span></div>
+      <div id="suGoals"></div>
+      <button id="suAddGoal" class="btn ghost small-btn" type="button">+ Add goal</button></div>
     <div class="row end"><button id="suCancel" class="btn link">Not now</button><button id="suSave" class="btn">Start SteadPal</button></div>
   </div></div>
 
-  <footer class="muted small"><b class="support-f">Every dollar through PayPal works for you.</b><br>Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
+  <footer class="muted small"><b class="support-f">SteadPal · a feature concept for PayPal</b><br>Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
   <script src="/app.js"></script>
