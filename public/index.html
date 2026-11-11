@@ -15,6 +15,17 @@
     <div class="who" id="who"></div>
   </header>
 
+  <nav class="guide" id="guide">
+    <span class="guide-title">Guided demo</span>
+    <button data-step="0" class="step">Start</button>
+    <button data-step="1" class="step">1 · Weak month ahead</button>
+    <button data-step="2" class="step">2 · Client pays $1,600</button>
+    <button data-step="3" class="step">3 · Partner cashback</button>
+    <button data-step="4" class="step">4 · What if: $1,400 laptop</button>
+    <button data-step="5" class="step">5 · Income passport</button>
+    <div class="guide-caption" id="guideCaption">Follow Ana, a freelance designer whose income changes every month.</div>
+  </nav>
+
   <main class="grid">
     <section class="card wide forecast" id="forecast">
       <h2>Next month</h2>
@@ -43,7 +54,13 @@
     <section class="card">
       <h2>Partner cashback</h2>
       <p class="muted small">Pay with PayPal at a partner. The cashback goes to the goal that needs it most.</p>
-      <div id="offers"></div>
+      <div class="row">
+        <input id="shopQuery" placeholder="Search real products, e.g. drawing stylus" value="drawing stylus">
+        <button id="shopBtn" class="btn ghost">Search</button>
+      </div>
+      <div id="shopResults"></div>
+      <p class="muted small" id="shopSource"></p>
+      <details class="small"><summary class="muted">Partner stores</summary><div id="offers"></div></details>
       <div id="shopButtons"></div>
       <button id="simShop" class="btn ghost">Buy a $120 stylus at InkLine Store (5%)</button>
     </section>

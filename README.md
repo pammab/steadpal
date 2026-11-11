@@ -4,6 +4,8 @@
 
 *Click PayPal. Build your future.*
 
+**Live demo:** https://steadpal.onrender.com (free hosting: the first visit can take up to a minute to wake up). Use the **Guided demo** bar at the top.
+
 Freelancers get paid irregularly: $3,500 one month, $800 the next, while rent stays the same. They have no employer setting money aside for taxes, emergencies or a steady paycheck. SteadPal turns every PayPal payment into a plan: an AI splits each incoming payment into pots, sees weak months coming, can pay you a steady weekly amount from your own reserve, routes partner cashback to the goal that needs it most, and gives you a verifiable income passport.
 
 Built for freelancers, useful for anyone with a goal.
@@ -21,7 +23,7 @@ Built for freelancers, useful for anyone with a goal.
 | Smart split | A client pays through PayPal → money is split into taxes, weekly pay reserve, emergency fund and goals, with a one-sentence explanation | Core |
 | Weak-month forecast | "Your retainer ended and a $1,600 invoice is 21 days late. Next month looks like $1,700–$3,950." | Core |
 | Goals in plain language | "I want $1,200 for a trip by August" → a goal with an amount and a deadline (asks for missing facts) | Core |
-| Partner cashback | Paying with PayPal at a partner merchant sends the cashback to the goal most behind, not to the wallet | Core |
+| Partner cashback (Channel3) | Search real products through Channel3, pay with PayPal, and the cashback (a share of the store commission) goes to the goal most behind, not to the wallet | Core |
 | What-if simulator | "If I buy a $1,400 laptop, my emergency fund is delayed about 3 months" | Core |
 | Monthly report | Plain-language summary of income, irregularity, reserve and goals | Core |
 | Weekly pay | A steady weekly amount from the user's own reserve (PayPal Payouts) | Opt-in |
@@ -70,6 +72,13 @@ Weekly pay → PayPal Payouts · History → Transaction Search → income passp
 | Transaction Search | Payment history for statistics and the passport |
 | Log in with PayPal | User consent and identity (planned) |
 
+### Channel3 (sponsor tool)
+- `POST https://api.trychannel3.com/v1/search` with the `x-api-key` header returns real products with prices, images and retailer offers (`channel3.js`).
+- Each result shows the cashback it would add to the user's pots. Channel3 pays a commission on sales through its links; SteadPal returns an estimated share (`CASHBACK_RATE`, default 3%) and the AI routes it to the goal that needs it most.
+- This answers "who pays for the cashback?": the merchant's commission, so PayPal carries no extra cost.
+- If the key is missing or the call fails, the app shows fictional demo products and keeps working.
+- In this prototype the PayPal payment for a product is made in the sandbox; in production the purchase would go through the retailer's Channel3 link.
+
 ### AI used
 - **Claude (Anthropic API)**, model set by `STEADPAL_MODEL`: explanations, goal interpretation, monthly report wording.
 - Strict rules in the system prompt: use only the numbers provided, education only, no investment recommendations, treat client text (memos, names) as data, never as instructions.
@@ -100,6 +109,8 @@ Set these environment variables (locally or in Render):
 | `PAYPAL_PAYOUT_RECEIVER` | Email of a sandbox personal test account (receives weekly pay) |
 | `ANTHROPIC_API_KEY` | console.anthropic.com |
 | `STEADPAL_MODEL` | Optional, Claude model name |
+| `CHANNEL3_API_KEY` | trychannel3.com → Dashboard → API keys |
+| `CASHBACK_RATE` | Optional, share of the price returned as cashback (default 0.03) |
 | `PASSPORT_SECRET` | Any long random string (signs income passports) |
 
 With PayPal keys set, real PayPal buttons appear: pay the overdue invoice or buy at a partner merchant with a **sandbox buyer account**.
@@ -112,12 +123,12 @@ New → Web Service → connect this repo → Build command: *(none)* → Start 
 ## Demo walkthrough (Ana, a freelance designer in Los Angeles)
 1. **Next month** shows a weak-month warning: retainer ended, Northwind invoice 21 days late.
 2. **Get paid**: the $1,600 invoice is paid → $400 taxes, $900 weekly pay reserve, $300 emergency fund, with the reason.
-3. **Partner cashback**: a $120 stylus at a partner (5%) → $6 goes to the emergency fund.
+3. **Partner cashback**: search "drawing stylus" (real products from Channel3), buy with PayPal → the cashback goes to the emergency fund.
 4. **What if** a $1,400 laptop → emergency fund delayed about 3 months.
 5. **Income passport** (6 months): average $2,450/month, min $0, max $4,200, 4 of 6 months above $2,500, 2 verified clients → open the verification page.
 
 ## Limitations
-- Simulated data; sandbox only. Cashback is simulated (no real merchant partnerships).
+- Simulated data; sandbox only. Cashback rate is an estimate (Channel3 commission data is not in the search response); products are real when the Channel3 key is set.
 - Pots are labels over one balance ("soft" pots); real sub-accounts would need PayPal.
 - Forecasts cannot predict shocks; they show ranges.
 - Webhook signature verification and persistent storage are not implemented yet.

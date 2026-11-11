@@ -13,6 +13,8 @@ const crypto = require("crypto");
 const E = require("./engine/core");
 const AI = require("./engine/llm");
 const PP = require("./paypal");
+const C3 = require("./channel3");
+const shopCache = new Map(); // product id -> product returned by the last searches
 
 const PORT = process.env.PORT || 3000;
 const SECRET = process.env.PASSPORT_SECRET || "dev-only-secret-change-me";
@@ -61,6 +63,7 @@ function state() {
     openInvoices: data.openInvoices,
     activity: activity.slice(0, 12),
     paypal: { enabled: PP.enabled(), clientId: process.env.PAYPAL_CLIENT_ID || null },
+    channel3: { enabled: C3.enabled(), cashbackRate: C3.CASHBACK_RATE },
     ai: { enabled: Boolean(process.env.ANTHROPIC_API_KEY), model: AI.MODEL },
   };
 }
@@ -109,6 +112,7 @@ const routes = {
     const unit = cap.purchase_units?.[0]?.payments?.captures?.[0];
     const amount = Number(unit?.amount?.value || b.amount);
     if (b.kind === "purchase") return routes["POST /api/cashback"]({ merchant: b.merchant, amount, paypalId: cap.id });
+    if (b.kind === "shop") return routes["POST /api/shop/buy"]({ productId: b.productId, paypalId: cap.id });
     const r = await receivePayment(amount, b.payer || "northwind", "paypal", cap.id);
     return [200, { ...r, paypalStatus: cap.status, state: state() }];
   },
@@ -130,6 +134,31 @@ const routes = {
     const explanation = await AI.explain("cashback", route);
     log("cashback", explanation, { amount: cashback, merchant: offer.merchant });
     return [200, { route, explanation, state: state() }];
+  },
+
+  // Real products from Channel3 with the cashback each would put into a pot.
+  "POST /api/shop/search": async (b) => {
+    const q = String(b.query || "").slice(0, 120);
+    if (!q) return [400, { error: "Type what you are looking for" }];
+    const r = await C3.search(q, { limit: 4, maxPrice: b.maxPrice });
+    const products = r.products.map((p) => {
+      shopCache.set(p.id, p);
+      return { ...p, cashback: money(p.price * C3.CASHBACK_RATE) };
+    });
+    return [200, { source: r.source, rate: C3.CASHBACK_RATE, products }];
+  },
+
+  // Purchase of a Channel3 product (paid with PayPal) -> estimated commission share -> pot.
+  "POST /api/shop/buy": async (b) => {
+    const p = shopCache.get(b.productId);
+    if (!p) return [400, { error: "Search for the product first" }];
+    const cashback = money(p.price * C3.CASHBACK_RATE);
+    const route = E.routeCashback(cashback, data);
+    const goal = data.goals.find((g) => g.id === route.goal);
+    data.pots[goal.pot] = money((data.pots[goal.pot] || 0) + cashback);
+    const explanation = await AI.explain("cashback", route);
+    log("cashback", `${p.title} ($${p.price}) paid with PayPal. ${explanation}`, { amount: cashback, merchant: p.merchant, source: "channel3" });
+    return [200, { product: p, route, explanation, state: state() }];
   },
 
   "POST /api/whatif": async (b) => {

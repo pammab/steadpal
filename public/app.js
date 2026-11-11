@@ -63,6 +63,37 @@ $("simPay").onclick = async () => {
   $("payHint").textContent = r.explanation;
   render(r.state, flashFrom(r.plan.alloc));
 };
+// Channel3: real products, cashback into the pot that needs it most
+async function buyProduct(id) {
+  const r = await api("POST", "/api/shop/buy", { productId: id });
+  $("shopSource").textContent = r.explanation;
+  render(r.state, [r.route.goal]);
+  return r;
+}
+$("shopBtn").onclick = async () => {
+  $("shopResults").innerHTML = `<p class="muted small">Searching…</p>`;
+  try {
+    const r = await api("POST", "/api/shop/search", { query: $("shopQuery").value });
+    $("shopSource").textContent = r.source === "channel3"
+      ? `Real products from Channel3. Cashback shown is an estimated ${Math.round(r.rate * 100)}% share of the store commission.`
+      : `Demo products (Channel3 not connected). Cashback is an estimated ${Math.round(r.rate * 100)}%.`;
+    $("shopResults").innerHTML = r.products.map((p) => `<div class="product">
+        ${p.image ? `<img src="${p.image}" alt="">` : `<div class="noimg"></div>`}
+        <div class="info"><div class="title" title="${p.title}">${p.title}</div>
+        <div class="muted">${usd(p.price)} · ${p.merchant || p.brand}</div>
+        <div class="cb">+${"$" + p.cashback.toFixed(2)} to your pots</div></div>
+        <div class="pp" id="pp-${p.id}"><button class="btn ghost" data-buy="${p.id}">Buy</button></div></div>`).join("");
+    document.querySelectorAll("[data-buy]").forEach((b) => {
+      const p = r.products.find((x) => x.id === b.dataset.buy);
+      if (S.paypal.enabled && window.paypal) {
+        b.remove();
+        mountButton(`#pp-${CSS.escape(p.id)}`, { amount: p.price, description: p.title.slice(0, 120), kind: "shop", productId: p.id });
+      } else b.onclick = () => buyProduct(p.id);
+    });
+    return r;
+  } catch (e) { $("shopResults").innerHTML = `<p class="muted small">${e.message}</p>`; }
+};
+
 $("simShop").onclick = async () => {
   const r = await api("POST", "/api/cashback", { merchant: "InkLine Store", amount: 120 });
   render(r.state, [r.route.goal]);
@@ -95,6 +126,63 @@ $("ppBtn").onclick = async () => {
 };
 $("reset").onclick = async () => { render(await api("POST", "/api/reset")); ["payHint", "goalOut", "wiOut", "reportOut", "ppOut"].forEach((id) => ($(id).textContent = "")); };
 
+// ---------- Guided demo: the 5 moments in order, for the video ----------
+const cardOf = (id) => $(id).closest(".card");
+function spot(id, caption) {
+  document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
+  const c = cardOf(id);
+  c.classList.add("spot");
+  c.scrollIntoView({ behavior: "smooth", block: "center" });
+  $("guideCaption").textContent = caption;
+}
+const STEPS = [
+  async () => {
+    await $("reset").onclick();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
+    $("guideCaption").textContent = "Meet Ana: freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500.";
+  },
+  async () => spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. A weak month is coming, before it happens."),
+  async () => {
+    if (S.paypal.enabled) {
+      spot("payButtons", "The client pays the overdue invoice with PayPal. Pay with the sandbox buyer account to see the AI split it.");
+    } else {
+      await $("simPay").onclick();
+      spot("pots", "The late $1,600 arrives through PayPal. The AI splits it: taxes, weekly pay reserve, emergency fund, and the code checks every dollar.");
+    }
+  },
+  async () => {
+    $("shopQuery").value = "drawing stylus";
+    const r = await $("shopBtn").onclick();
+    if (S.paypal.enabled || !r || !r.products.length) {
+      spot("shopResults", "Ana searches real products through Channel3 and pays with PayPal. Each one shows the cashback it would add to her pots.");
+    } else {
+      await buyProduct(r.products[0].id);
+      spot("pots", "She buys with PayPal. The cashback doesn't go to the wallet: it goes to the goal most behind, her emergency fund.");
+    }
+  },
+  async () => {
+    $("wiPrice").value = 1400;
+    await $("wiBtn").onclick();
+    spot("wiOut", "Thinking about a new laptop? The simulator shows the real trade-off before she spends.");
+  },
+  async () => {
+    $("ppMonths").value = "6";
+    await $("ppBtn").onclick();
+    spot("ppOut", "A landlord asks for proof of income. Ana shares a signed passport with facts from PayPal and a code anyone can verify.");
+  },
+];
+document.querySelectorAll(".step").forEach((b) => {
+  b.onclick = async () => {
+    const i = Number(b.dataset.step);
+    document.querySelectorAll(".step").forEach((x) => {
+      x.classList.toggle("active", x === b);
+      x.classList.toggle("done", Number(x.dataset.step) < i);
+    });
+    try { await STEPS[i](); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; }
+  };
+});
+
 // ---------- PayPal buttons (sandbox), only when keys are configured ----------
 function loadPayPal(clientId) {
   return new Promise((resolve, reject) => {
@@ -104,13 +192,14 @@ function loadPayPal(clientId) {
     document.head.appendChild(s);
   });
 }
-function mountButton(el, { amount, description, kind, payer, merchant }) {
+function mountButton(el, { amount, description, kind, payer, merchant, productId }) {
   window.paypal.Buttons({
-    style: { layout: "horizontal", height: 40, tagline: false },
+    style: { layout: "horizontal", height: kind === "shop" ? 30 : 40, tagline: false },
     createOrder: async () => (await api("POST", "/api/paypal/order", { amount, description })).id,
     onApprove: async (d) => {
-      const r = await api("POST", "/api/paypal/capture", { orderId: d.orderID, amount, kind, payer, merchant });
-      if (kind === "purchase") render(r.state, [r.route.goal]);
+      const r = await api("POST", "/api/paypal/capture", { orderId: d.orderID, amount, kind, payer, merchant, productId });
+      if (kind === "shop") { $("shopSource").textContent = r.explanation; render(r.state, [r.route.goal]); }
+      else if (kind === "purchase") render(r.state, [r.route.goal]);
       else { $("payHint").textContent = r.explanation; render(r.state, flashFrom(r.plan.alloc)); }
     },
     onError: (e) => alert("PayPal error: " + e),
