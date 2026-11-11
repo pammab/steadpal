@@ -750,7 +750,18 @@ const server = http.createServer(async (req, res) => {
     const full = path.join(__dirname, "public", path.normalize(file).replace(/^(\.\.[/\\])+/, ""));
     if (full.startsWith(path.join(__dirname, "public")) && fs.existsSync(full)) {
       const ext = path.extname(full);
-      const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png" }[ext] || "text/plain";
+      const type = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".mp3": "audio/mpeg" }[ext] || "text/plain";
+      if (ext === ".mp3") {
+        // Audio: support byte ranges so the browser can jump to any step of the narration.
+        const buf = fs.readFileSync(full), m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || "");
+        if (m) {
+          const start = m[1] ? Number(m[1]) : 0, end = m[2] ? Math.min(Number(m[2]), buf.length - 1) : buf.length - 1;
+          res.writeHead(206, { "Content-Type": type, "Content-Range": `bytes ${start}-${end}/${buf.length}`, "Accept-Ranges": "bytes", "Content-Length": end - start + 1, "Cache-Control": "public, max-age=3600" });
+          return res.end(buf.subarray(start, end + 1));
+        }
+        res.writeHead(200, { "Content-Type": type, "Accept-Ranges": "bytes", "Content-Length": buf.length, "Cache-Control": "public, max-age=3600" });
+        return res.end(buf);
+      }
       return send(res, 200, fs.readFileSync(full), type);
     }
     send(res, 404, { error: "Not found" });

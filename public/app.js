@@ -835,7 +835,7 @@ const STEPS = [
     spot("nudge", "The AI drafts a polite reminder for the late $1,600 invoice. Ana edits it if she wants and sends it through PayPal.");
   },
   async () => {
-    if (S.paypal.enabled) {
+    if (S.paypal.enabled && !autoPlaying) {
       spot("payButtons", "The client pays the overdue invoice with PayPal. Pay with the sandbox buyer account to see the AI split it.");
     } else {
       await $("simPay").onclick();
@@ -846,7 +846,7 @@ const STEPS = [
     $("shopQuery").value = "drawing stylus";
     if (!S.settings.roundUps?.enabled) render(await api("POST", "/api/roundups", { enabled: true, step: 5 }));
     const r = await $("shopBtn").onclick();
-    if (S.paypal.enabled || !r || !r.products.length) {
+    if ((S.paypal.enabled && !autoPlaying) || !r || !r.products.length) {
       spot("shopResults", "Ana searches real products through Channel3 and pays with PayPal. Each one shows the cashback it would add to her pots.");
     } else {
       await buyProduct(r.products[0].id);
@@ -875,13 +875,101 @@ const STEPS = [
     spot("repStats", `Reports: ${top.client} brings ${Math.round(top.share * 100)}% of her income${top.avgDaysLate ? ` and pays about ${top.avgDaysLate} days late` : ""}. On Home, every PayPal payment is in one table that shows what counts for the passport.`);
   },
 ];
-document.querySelectorAll(".step").forEach((b) => {
+// ---------- Narration: each guided step speaks its part of the script ----------
+// Uses an MP3 from /voice/step-N.mp3 if present (e.g. made with ElevenLabs), otherwise the browser's own voice.
+const NARRATION = [
+  "Sixty-four million Americans freelance. Ana is one of them: a designer in Los Angeles. In March she earned thirty-five hundred dollars. In April, eight hundred. Her rent is still fifteen hundred. This is SteadPal: the paycheck freelancers never had, a feature concept for PayPal. SteadPal lives inside the PayPal Wallet. One balance, labelled into pots: taxes, an income reserve, an emergency fund and goals. The money never leaves PayPal, and Ana can switch SteadPal off anytime.",
+  "SteadPal reads her PayPal history. A retainer ended, and an invoice is twenty-one days late. So it warns her before the weak month, and shows her steady income is still protected.",
+  "The AI drafts a polite reminder for the late invoice. Ana edits it and sends it through PayPal. Her client can even pay with Pay Later, and Ana still gets the full amount now.",
+  "The sixteen hundred dollars arrives. SteadPal splits it: four hundred for taxes, nine hundred to refill her income reserve, three hundred to her emergency fund. The AI explains every decision. The math is code, and code checks every dollar.",
+  "She buys a stylus with PayPal through Channel 3. The cashback, and an optional round-up, go to the goal that needs them most, not to her wallet.",
+  "A fourteen-hundred-dollar laptop, right now? Her emergency fund would be ready months later. SteadPal shows the trade-off. Ana decides.",
+  "Is her income safe? SteadPal runs one thousand possible futures from her own history. In almost all of them, her income stays covered for the next six months.",
+  "A landlord asks for proof of income. Ana shares a signed income passport: facts from PayPal payments only, never a score, with a code anyone can verify.",
+  "Her reports show which clients pay late, and an AI consultant answers her questions. Freelancers get a steady paycheck. PayPal keeps the money and the clicks. Every dollar through PayPal works for you. Click PayPal. Build your future.",
+];
+let voiceOn = false, voiceAudio = null;
+function stopVoice() { if (voiceAudio) { voiceAudio.pause(); voiceAudio = null; } if (window.speechSynthesis) speechSynthesis.cancel(); }
+function pickVoice() {
+  const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  return vs.find((v) => /Google US English/i.test(v.name)) || vs.find((v) => /Samantha|Jenny|Aria|Zira/i.test(v.name) && /en/i.test(v.lang)) || vs.find((v) => /^en-US/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || null;
+}
+// Recorded voiceover (ElevenLabs): one file, with the second where each step starts.
+const VOICE_FILE = "/voice/full.mp3";
+const VOICE_MARKS = [0, 29.9, 40.8, 53.2, 67.9, 77.2, 85.1, 96.0, 105.9, 999];
+let hasRecording = false;
+fetch(VOICE_FILE, { method: "HEAD" }).then((r) => (hasRecording = r.ok)).catch(() => {});
+function speakStep(n) {
+  stopVoice();
+  if (!voiceOn || !NARRATION[n]) return;
+  if (hasRecording) {
+    const a = new Audio(VOICE_FILE);
+    voiceAudio = a;
+    a.addEventListener("loadedmetadata", () => { a.currentTime = VOICE_MARKS[n]; a.play().catch(() => {}); }, { once: true });
+    a.addEventListener("timeupdate", () => { if (a.currentTime >= VOICE_MARKS[n + 1] - 0.05) a.pause(); });
+    return;
+  }
+  if (!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(NARRATION[n]);
+  const v = pickVoice(); if (v) u.voice = v;
+  u.lang = "en-US"; u.rate = 0.98; u.pitch = 1;
+  speechSynthesis.speak(u);
+}
+
+// One button: plays the whole voiceover and moves through the 9 steps by itself (for recording the video).
+let autoPlaying = false;
+function markStep(i) {
+  document.querySelectorAll(".step[data-step]").forEach((x) => {
+    x.classList.toggle("active", Number(x.dataset.step) === i);
+    x.classList.toggle("done", Number(x.dataset.step) < i);
+  });
+}
+$("playAll").onclick = async () => {
+  if (autoPlaying) { autoPlaying = false; stopVoice(); $("playAll").textContent = "▶ Play demo with voice"; return; }
+  autoPlaying = true; stopVoice();
+  $("playAll").textContent = "■ Stop";
+  let next = 0;
+  const run = async (i) => { markStep(i); try { await STEPS[i](); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; } };
+  if (hasRecording) {
+    const a = new Audio(VOICE_FILE);
+    voiceAudio = a;
+    a.play().catch(() => {}); // start right away, while the click still counts as a user gesture
+    await run(0); next = 1;
+    a.addEventListener("timeupdate", () => {
+      if (!autoPlaying) return;
+      while (next < STEPS.length && a.currentTime >= VOICE_MARKS[next]) { const k = next++; run(k); }
+    });
+    a.addEventListener("ended", () => { autoPlaying = false; $("playAll").textContent = "▶ Play demo with voice"; });
+  } else {
+    // No recording: browser voice, one step after another.
+    for (let i = 0; i < STEPS.length && autoPlaying; i++) {
+      await run(i);
+      await new Promise((res) => {
+        if (!window.speechSynthesis) return setTimeout(res, 6000);
+        const u = new SpeechSynthesisUtterance(NARRATION[i]); const v = pickVoice(); if (v) u.voice = v; u.lang = "en-US";
+        u.onend = res; u.onerror = res; speechSynthesis.speak(u);
+      });
+    }
+    autoPlaying = false; $("playAll").textContent = "▶ Play demo with voice";
+  }
+};
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => pickVoice();
+$("voiceBtn").onclick = () => {
+  voiceOn = !voiceOn;
+  $("voiceBtn").textContent = voiceOn ? "🔊 Voice: on" : "🔊 Voice: off";
+  $("voiceBtn").classList.toggle("active", voiceOn);
+  if (!voiceOn) stopVoice();
+  else if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance("Voice on."); const v = pickVoice(); if (v) u.voice = v; speechSynthesis.speak(u); }
+};
+
+document.querySelectorAll(".step[data-step]").forEach((b) => {
   b.onclick = async () => {
     const i = Number(b.dataset.step);
-    document.querySelectorAll(".step").forEach((x) => {
+    document.querySelectorAll(".step[data-step]").forEach((x) => {
       x.classList.toggle("active", x === b);
       x.classList.toggle("done", Number(x.dataset.step) < i);
     });
+    speakStep(i);
     try { await STEPS[i](); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; }
   };
 });

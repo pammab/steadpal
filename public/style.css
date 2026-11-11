@@ -295,3 +295,6 @@ body { padding-bottom: 0; }
 .sp-switch { display:inline-flex; align-items:center; gap:6px; }
 .srcpop.wide { width:330px; }
 .why ol { margin:6px 0 6px; padding-left:20px; } .why ol ol { padding-left:18px; margin:4px 0; } .why li { margin:3px 0; }
+.step.voice { border-color:#7fe0a8; color:#7fe0a8; }
+.step.voice.active { background:#2bb673; color:#fff; border-color:#2bb673; }
+.step.play { background:#2470e6; border-color:#2470e6; color:#fff; font-weight:700; }
