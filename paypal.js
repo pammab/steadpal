@@ -60,14 +60,19 @@ const searchTransactions = (startDate, endDate) =>
   call("GET", `/v1/reporting/transactions?start_date=${startDate}T00:00:00-0000&end_date=${endDate}T23:59:59-0000&fields=all&page_size=100`);
 
 // Invoicing v2: create a real invoice for the overdue amount, send it, then send reminders.
-async function createInvoice({ amount, itemName, note, recipientEmail, invoicerName }) {
+async function createInvoice({ amount, itemName, note, recipientEmail }) {
+  const today = new Date().toISOString().slice(0, 10);
   const r = await call("POST", "/v2/invoicing/invoices", {
-    detail: { currency_code: "USD", note: String(note || "").slice(0, 4000) },
-    invoicer: { name: { full_name: invoicerName || "SteadPal demo" } },
+    detail: {
+      currency_code: "USD",
+      invoice_date: today,
+      note: String(note || "").slice(0, 4000),
+      payment_term: { term_type: "DUE_ON_RECEIPT" },
+    },
     primary_recipients: [{ billing_info: { email_address: recipientEmail } }],
-    items: [{ name: itemName || "Design services", quantity: "1", unit_amount: { currency_code: "USD", value: Number(amount).toFixed(2) } }],
+    items: [{ name: String(itemName || "Design services").slice(0, 200), quantity: "1", unit_amount: { currency_code: "USD", value: Number(amount).toFixed(2) } }],
   });
-  return r.id || String(r.href || "").split("/").pop();
+  return r.id || String(r.href || (r.links || [])[0]?.href || "").split("/").pop();
 }
 const sendInvoice = (id, subject, note) =>
   call("POST", `/v2/invoicing/invoices/${encodeURIComponent(id)}/send`, { subject, note: String(note || "").slice(0, 4000), send_to_invoicer: false });

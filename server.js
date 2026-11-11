@@ -139,11 +139,17 @@ const routes = {
       try {
         if (!paypalInvoiceId) {
           // First reminder: create the invoice in PayPal and send it with the note (PayPal emails a Pay button).
-          paypalInvoiceId = await PP.createInvoice({ amount: inv.amount, itemName: `Invoice ${inv.id} (design services)`, note, recipientEmail: INVOICE_TO, invoicerName: data.user.name });
+          paypalInvoiceId = await PP.createInvoice({ amount: inv.amount, itemName: `Invoice ${inv.id} (design services)`, note, recipientEmail: INVOICE_TO });
           await PP.sendInvoice(paypalInvoiceId, subject, note);
         } else await PP.remindInvoice(paypalInvoiceId, subject, note);
         inv.paypalInvoiceId = paypalInvoiceId; via = "paypal";
-      } catch (e) { warning = "PayPal Invoicing failed, reminder recorded in demo mode."; console.error("[invoicing]", e.message); }
+      } catch (e) {
+        console.error("[invoicing]", e.message);
+        // Show PayPal's reason (no secrets in it) so the problem can be fixed.
+        const m = e.message.match(/"(?:issue|name)":"([^"]+)"/g) || [];
+        const why = m.map((x) => x.split(":")[1].replace(/"/g, "")).slice(0, 2).join(", ") || e.message.slice(0, 120);
+        warning = `PayPal Invoicing failed (${why}). Reminder recorded in demo mode.`;
+      }
     }
     inv.remindedOn = data.user.today;
     log("reminder", `Payment reminder for invoice ${inv.id} sent to ${payerName(inv.payer)}${via === "paypal" ? ` through PayPal Invoicing (${paypalInvoiceId})` : ""}.`);
