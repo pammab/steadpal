@@ -2,7 +2,7 @@
 // Run: node server.js  (then open http://localhost:3000)
 // Env (all optional for the offline demo):
 //   PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET  -> real PayPal sandbox payments and payouts
-//   PAYPAL_PAYOUT_RECEIVER                   -> sandbox personal account email that receives weekly pay
+//   PAYPAL_PAYOUT_RECEIVER                   -> sandbox personal account email that receives steady income payouts
 //   ANTHROPIC_API_KEY, STEADPAL_MODEL        -> real AI explanations and goal interpretation
 //   PASSPORT_SECRET                          -> key used to sign income passports
 //   PORT                                     -> default 3000
@@ -82,6 +82,11 @@ function suggestions() {
   };
 }
 
+function periodNow() {
+  const sal = E.safeWeeklySalary(E.incomeStats(E.monthlyIncome(data.transactions, E.statsMonths(data))), data.settings);
+  return E.payPeriod(data.settings, sal.weekly, data.user.today);
+}
+
 function state() {
   const report = E.monthlyReport(data);
   const months = E.statsMonths(data);
@@ -106,6 +111,7 @@ function state() {
     tax: A.taxStatus(data),
     suggestions: suggestions(),
     potsSnapshot: data.potsSnapshot || null,
+    period: periodNow(),
     wallet: { available: data.available || 0, inPots: Object.values(data.pots).reduce((a, b) => a + b, 0), enabled: data.settings.steadpalEnabled !== false, onboarded: Boolean(data.settings.onboarded) },
     otherIncome: data.transactions.filter((t) => t.type === "self_reported"),
     rates: { asOf: RATES_META.lastRefresh, auto: data.settings.ratesAuto || "weekly" },
@@ -280,6 +286,11 @@ const routes = {
       else { tp.enabled = true; const stRate = Math.min(tp.stateRate || 0, r); tp.stateRate = stRate; tp.federalRate = +(Math.min(0.6, r) - stRate).toFixed(4); }
       st.taxRate = tp.enabled ? +((tp.federalRate || 0) + (tp.stateRate || 0)).toFixed(4) : st.taxRate;
     }
+    if (["weekly", "biweekly", "semimonthly", "monthly", "custom"].includes(b.payFrequency)) st.payFrequency = b.payFrequency;
+    if (b.payEveryDays !== undefined && Number(b.payEveryDays) > 0) st.payEveryDays = Math.min(90, Math.max(1, Math.round(Number(b.payEveryDays))));
+    if (["manual", "automatic"].includes(b.payMode)) st.payMode = b.payMode;
+    // Amount per payday (custom) is converted to its weekly equivalent for the engine.
+    if (b.payAmount !== undefined && b.payAmount !== "" && b.weeklyPay === undefined) b.weeklyPay = (Number(b.payAmount) * E.payPeriod(st, 1, data.user.today).perYear) / 52;
     if (b.weeklyPay !== undefined) {
       if (b.weeklyPay === "off") { st.salaryEnabled = false; }
       else { st.salaryEnabled = true; if (data.pots.salaryReserve == null) data.pots.salaryReserve = 0; st.weeklyPay = b.weeklyPay === "suggested" ? null : Math.max(1, Math.round(Number(b.weeklyPay)) || 0) || null; }
@@ -498,6 +509,7 @@ const routes = {
     if (b.rent !== undefined) data.settings.rent = pos(b.rent) ?? data.settings.rent;
     if (b.expenses !== undefined) data.settings.fixedMonthlyExpenses = pos(b.expenses) ?? data.settings.fixedMonthlyExpenses;
     if (b.weeklyPay !== undefined) data.settings.weeklyPay = pos(b.weeklyPay) || null; // empty = use the suggestion
+    if (b.payAmount !== undefined) { const a = pos(b.payAmount); data.settings.weeklyPay = a ? Math.round((a * E.payPeriod(data.settings, 1, data.user.today).perYear) / 52) : null; }
     if (b.reserveWeeks !== undefined) data.settings.reserveWeeks = Math.min(12, Math.max(1, Math.round(Number(b.reserveWeeks)) || 4));
     if (b.emergencyTarget !== undefined) {
       const g = data.goals.find((x) => x.id === "emergency");
@@ -574,7 +586,7 @@ const routes = {
   "POST /api/pots/delete": async (b) => {
     if (b.id === "tax") return [400, { error: "The tax pot can't be deleted; turn tax set-aside off in Profile instead" }];
     const amount = data.pots[b.id] || 0;
-    if (b.id === "salaryReserve") { data.settings.salaryEnabled = false; delete data.pots.salaryReserve; }
+    if (b.id === "salaryReserve") return [400, { error: "The income reserve can't be deleted; pause it instead" }];
     else {
       const g = data.goals.find((x) => x.id === b.id);
       if (!g) return [404, { error: "Pot not found" }];
@@ -610,19 +622,20 @@ const routes = {
   // ---------- Rates ----------
   "POST /api/rates/refresh": async () => [200, { result: await refreshRates(), options: RATES.options, lastRefresh: RATES_META.lastRefresh }],
 
-  // Weekly pay from the user's own reserve. Real Payout when keys + receiver are set.
+  // Steady income from the user's own reserve, on the frequency they chose. Real Payout when keys + receiver are set
+  // (in the sandbox it goes to a test account; inside PayPal it would just move from the reserve label to Available).
   "POST /api/salary/pay": async () => {
-    if (!data.settings.salaryEnabled) return [400, { error: "Weekly pay is turned off" }];
-    const s = state().salary;
-    if ((data.pots.salaryReserve || 0) < s.weekly) return [400, { error: "Reserve too low for this week's pay" }];
+    if (!data.settings.salaryEnabled) return [400, { error: "Steady income is paused" }];
+    const pp = periodNow();
+    if ((data.pots.salaryReserve || 0) < pp.amount) return [400, { error: "The income reserve is too low for this payday" }];
     let payout = null;
     if (PP.enabled() && process.env.PAYPAL_PAYOUT_RECEIVER) {
-      payout = await PP.createPayout(s.weekly, process.env.PAYPAL_PAYOUT_RECEIVER, "SteadPal weekly pay from your reserve");
+      payout = await PP.createPayout(pp.amount, process.env.PAYPAL_PAYOUT_RECEIVER, "SteadPal income from your reserve");
     }
-    data.pots.salaryReserve = money(data.pots.salaryReserve - s.weekly);
-    data.available = money((data.available || 0) + s.weekly); // inside PayPal: moved from the reserve label to "available"
-    log("salary", `Weekly pay of $${s.weekly} sent from your reserve.`, { payoutBatch: payout?.batch_header?.payout_batch_id });
-    return [200, { paid: s.weekly, payout, state: state() }];
+    data.pots.salaryReserve = money(data.pots.salaryReserve - pp.amount);
+    data.available = money((data.available || 0) + pp.amount);
+    log("salary", `${pp.title}: $${pp.amount} moved from your income reserve to Available to spend${pp.mode === "automatic" ? " (automatic payday)" : ""}.`, { payoutBatch: payout?.batch_header?.payout_batch_id });
+    return [200, { paid: pp.amount, period: pp, payout, state: state() }];
   },
 
   "POST /api/passport": async (b) => {
@@ -681,7 +694,7 @@ function certificatePage(code, host) {
     ${row("Consistency", s.monthsAboveThreshold)}
     ${row("Distinct verified clients", s.distinctVerifiedPayers)}
     ${s.clientConcentration ? row("Largest client / largest 2", `${Math.round(s.clientConcentration.top1Share * 100)}% / ${Math.round(s.clientConcentration.top2Share * 100)}% of income`) : ""}
-    ${s.scheduledWeeklyPay ? row("Scheduled weekly pay (separate fact, not income)", s.scheduledWeeklyPay.split(" from")[0]) : ""}
+    ${s.scheduledWeeklyPay ? row("Scheduled steady income (separate fact, not income)", s.scheduledWeeklyPay.split(" from")[0]) : ""}
   </section>
   ${s.clientConcentration && s.clientConcentration.flag ? `<p class="conc"><b>Note:</b> ${s.clientConcentration.text}${p.allowRequests ? " The holder accepts questions about these clients at the verification link below." : ""}</p>` : ""}
   <p class="method">Counts only commercial PayPal payments (invoices, goods and services) from verified clients not linked to the holder. Personal transfers and manually entered income are excluded. Facts only: not a credit score and not a guarantee of employment or future income.</p>
@@ -692,7 +705,7 @@ function certificatePage(code, host) {
 const PASSPORT_LABELS = {
   issuedTo: "Issued to", issuedOn: "Issued on", period: "Period shown", payPalHistoryMonths: "History on PayPal (months)",
   monthlyAverage: "Monthly average ($)", min: "Lowest month ($)", max: "Highest month ($)", monthsAboveThreshold: "Consistency",
-  distinctVerifiedPayers: "Distinct verified clients", scheduledWeeklyPay: "Scheduled weekly pay", note: "Note",
+  distinctVerifiedPayers: "Distinct verified clients", scheduledWeeklyPay: "Scheduled steady income", note: "Note",
 };
 const esc = (x) => String(x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 function verifyPage(code) {

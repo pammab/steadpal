@@ -48,7 +48,10 @@
     "allocation": {
       "keepAvailablePct": 0,
       "leftover": "available"
-    }
+    },
+    "payFrequency": "weekly",
+    "payEveryDays": 10,
+    "payMode": "manual"
   },
   "payers": [
     {

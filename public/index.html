@@ -18,19 +18,6 @@
     <div class="who" id="who"></div>
   </header>
 
-  <nav class="guide" id="guide">
-    <span class="guide-title">Guided demo</span>
-    <button data-step="0" class="step">Start</button>
-    <button data-step="1" class="step">1 · Weak month ahead</button>
-    <button data-step="2" class="step">2 · AI reminder</button>
-    <button data-step="3" class="step">3 · Client pays $1,600</button>
-    <button data-step="4" class="step">4 · Partner cashback</button>
-    <button data-step="5" class="step">5 · What if: $1,400 laptop</button>
-    <button data-step="6" class="step">6 · Runway risk</button>
-    <button data-step="7" class="step">7 · Income passport</button>
-    <button data-step="8" class="step">8 · Clients report</button>
-    <div class="guide-caption" id="guideCaption">Follow Ana, a freelance designer whose income changes every month.</div>
-  </nav>
 
   <nav class="tabs" id="tabs">
     <button data-tab="wallet" class="tab">In the PayPal Wallet</button>
@@ -76,9 +63,9 @@
 
     <div class="lrow rmid" data-tab="home">
     <section class="card c-weekly">
-      <h2>Weekly pay <label class="switch"><input type="checkbox" id="salaryToggle"><span>on</span></label></h2>
+      <h2><span id="incTitle">Weekly income</span> <label class="switch"><input type="checkbox" id="salaryToggle"><span>on</span></label></h2>
       <div id="salaryBody"></div>
-      <button id="paySalary" class="btn ghost">Send this week's pay to my Wallet</button>
+      <button id="paySalary" class="btn ghost">Send this week's income to my Wallet</button>
     </section>
     <section class="card c-paid">
       <h2>Get paid</h2>
@@ -223,7 +210,7 @@
     <div class="lrow r1" data-tab="analysis" hidden>
     <section class="card" id="runwayCard">
       <h2>Runway risk check</h2>
-      <p class="fine first"><b>When to use it:</b> before raising your weekly pay, making a big purchase, or when a client leaves.</p>
+      <p class="fine first"><b>When to use it:</b> before raising your income from the reserve, making a big purchase, or when a client leaves.</p>
       <div class="row"><label class="small muted">Look ahead <select id="rwMonths"><option value="3">3 months</option><option value="6" selected>6 months</option><option value="12">12 months</option></select></label>
         <button id="rwBtn" class="btn">Run the check</button></div>
       <div id="rwOut"></div>
@@ -247,8 +234,8 @@
       <div class="form2">
         <label>Monthly rent<span class="money"><b>$</b><input id="nRent" type="number" min="0"></span></label>
         <label>Fixed monthly expenses (incl. rent)<span class="money"><b>$</b><input id="nExp" type="number" min="0"></span></label>
-        <label>Weekly pay<span class="money"><b>$</b><input id="nWeekly" type="number" min="0" placeholder="suggested"></span><span class="sugg" id="sWeekly"></span></label>
-        <label>Weekly pay reserve (weeks)<input id="nWeeks" type="number" min="1" max="12"><span class="sugg">Common choice: 4 weeks</span></label>
+        <label><span id="nWeeklyLbl">Income per payday</span><span class="money"><b>$</b><input id="nWeekly" type="number" min="0" placeholder="suggested"></span><span class="sugg" id="sWeekly"></span></label>
+        <label>Income reserve (weeks of income)<input id="nWeeks" type="number" min="1" max="12"><span class="sugg">Common choice: 4 weeks</span></label>
         <label>Emergency fund target<span class="money"><b>$</b><input id="nEmerg" type="number" min="0"></span>
           <span class="chips" id="sEmerg"></span></label>
       </div>
@@ -320,6 +307,21 @@
   </div></div>
 
   <footer class="muted small"><b class="support-f">SteadPal · Every dollar through PayPal works for you.</b><br>Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
+  <nav class="guide" id="guide">
+    <div class="guide-caption" id="guideCaption"></div>
+    <div class="guide-steps">
+    <span class="guide-title">Guided demo</span>
+    <button data-step="0" class="step">Start</button>
+    <button data-step="1" class="step">1 · Weak month ahead</button>
+    <button data-step="2" class="step">2 · AI reminder</button>
+    <button data-step="3" class="step">3 · Client pays $1,600</button>
+    <button data-step="4" class="step">4 · Partner cashback</button>
+    <button data-step="5" class="step">5 · What if: $1,400 laptop</button>
+    <button data-step="6" class="step">6 · Runway risk</button>
+    <button data-step="7" class="step">7 · Income passport</button>
+    <button data-step="8" class="step">8 · Clients report</button>
+    </div>
+  </nav>
   <div id="toast" class="toast" hidden></div>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@32.3.3/dist/ag-grid-community.min.js"></script>
   <script src="/app.js"></script>

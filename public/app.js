@@ -42,7 +42,7 @@ function showTab(name) {
   if (name === "home" && grid && grid.sizeColumnsToFit) setTimeout(() => grid.sizeColumnsToFit(), 50);
 }
 document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showTab(t.dataset.tab)));
-const POT_NAMES = { available: "Available to spend", tax: "Taxes (estimate)", salaryReserve: "Weekly pay reserve", emergency: "Emergency fund", laptop: "New laptop" };
+const POT_NAMES = { available: "Available to spend", tax: "Taxes (estimate)", salaryReserve: "Income reserve", emergency: "Emergency fund", laptop: "New laptop" };
 
 function render(s, flash = []) {
   S = s;
@@ -64,7 +64,7 @@ function render(s, flash = []) {
   if (f.weak) {
     const why = f.signals.map((x) => x.type === "contract_ended" ? `${x.payer}'s retainer ended` : `${x.payer} is ${x.daysLate} days late`).join(" and ");
     $("weakAlert").innerHTML = `<b>Heads up: next month may be low.</b> ${why ? why.charAt(0).toUpperCase() + why.slice(1) + ". " : ""}` +
-      (s.settings.salaryEnabled ? `Your ${usd(s.salary.weekly)} weekly pay is protected: your reserve (<a class="ev" data-ev="reserve">${usd(s.pots.salaryReserve || 0)}</a>) covers ${weeksCovered} week${weeksCovered === 1 ? "" : "s"}.` : "Turn on weekly pay to smooth it out.") +
+      (s.settings.salaryEnabled ? `Your ${usd(s.period.amount)} ${s.period.title.toLowerCase()} is protected: your reserve (<a class="ev" data-ev="reserve">${usd(s.pots.salaryReserve || 0)}</a>) covers ${weeksCovered} week${weeksCovered === 1 ? "" : "s"}.` : "Turn on weekly pay to smooth it out.") +
       ` <span class="muted small">Income dips are common: ${i("incomeDips")}</span>`;
     document.querySelectorAll("#weakAlert .ev").forEach((a) => (a.onclick = () => { showTab("home"); $("pots").scrollIntoView({ behavior: "smooth", block: "center" }); }));
   }
@@ -76,11 +76,12 @@ function render(s, flash = []) {
     const g = goalsByPot[k];
     const pct = g ? Math.min(100, Math.round((v / g.target) * 100)) : null;
     const name = g ? g.name : POT_NAMES[k] || k;
-    const reserveTarget = k === "salaryReserve" ? s.salary.weekly * (s.settings.reserveWeeks || 4) : null;
+    const reserveTarget = k === "salaryReserve" && s.settings.salaryEnabled ? s.salary.weekly * (s.settings.reserveWeeks || 4) : null;
     return `<div class="pot ${flash.includes(k) ? "flash" : ""}" id="pot-${k}"><div class="name">${name}</div>
       <div class="val">${usd(v)}</div>
       ${g ? `<div class="bar"><i style="width:${pct}%"></i></div><div class="muted small">${pct}% of ${usd(g.target)} · by ${g.deadline || "—"}</div>` : ""}
-      ${reserveTarget ? `<div class="bar"><i style="width:${Math.min(100, Math.round((v / reserveTarget) * 100))}%"></i></div><div class="muted small">target ${usd(reserveTarget)} = ${s.settings.reserveWeeks || 4} weeks of pay</div>` : ""}
+      ${k === "salaryReserve" && !s.settings.salaryEnabled ? `<div class="pill">Paused</div>` : ""}
+      ${reserveTarget ? `<div class="bar"><i style="width:${Math.min(100, Math.round((v / reserveTarget) * 100))}%"></i></div><div class="muted small">target ${usd(reserveTarget)} = ${s.settings.reserveWeeks || 4} weeks of income</div>` : ""}
       ${k === "tax" ? `<div class="muted small">${s.tax.enabled ? Math.round(s.tax.rate * 100) + "% of each payment" : "off"}</div>` : ""}
       ${k === "emergency" ? `<div class="muted small">Common guide: 3+ months of expenses ${i("emergency")}</div>` : ""}
       ${k === "emergency" && pyusdRate ? `<div class="pyusd small">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}% ${i("pyusd")}</div>` : ""}</div>`;
@@ -97,13 +98,17 @@ function render(s, flash = []) {
   $("simPay").style.display = s.openInvoices.length && !s.paypal.enabled ? "" : "none";
 
   $("salaryToggle").checked = s.settings.salaryEnabled;
+  const P = s.period;
+  $("incTitle").textContent = P.title;
   $("salaryBody").innerHTML = s.settings.salaryEnabled
-    ? `<div class="range">${usd(s.salary.weekly)}<span class="muted small"> / week</span></div>
-       <div class="muted small">From your own reserve. ${s.salary.userChosen ? `You chose this amount (suggested: ${usd(s.salary.suggested)}).` : `Suggested from your history; you can change it in Profile.`}
+    ? `<div class="range">${usd(P.amount)}<span class="muted small"> / ${P.label}</span></div>
+       <div class="small"><span class="pill ${P.mode === "automatic" ? "ok" : ""}">${P.mode === "automatic" ? `Automatic · next payday ${P.next}` : "Manual · you send it when you want"}</span></div>
+       <div class="muted small">From your own reserve. ${s.salary.userChosen ? `You chose this amount (suggested: ${usd(Math.round((s.salary.suggested * 52) / P.perYear / 5) * 5)}).` : `Suggested from your history.`} Change amount, frequency or mode in Profile.
        Covers your ${usd(s.settings.fixedMonthlyExpenses)} monthly expenses and leaves about ${usd(Math.max(0, s.salary.surplusForGoals))}/month for goals.</div>
        ${s.salary.surplusForGoals < 0 ? `<div class="note">This pays out more than you earn on average after taxes, so the reserve may shrink over time.</div>` : ""}
        <div class="muted small fact">Why it matters: only 63% of U.S. adults could cover a $400 surprise expense with cash ${i("shed")}</div>`
-    : `<p class="muted small">Off. You manage your own pay. Turn it on to get a steady weekly amount from your reserve.</p>`;
+    : `<p class="muted small">Paused. You manage your own pay; your reserve keeps its ${usd(s.pots.salaryReserve || 0)}. Turn it on to get a steady income from your reserve.</p>`;
+  $("paySalary").textContent = P.mode === "automatic" ? "Run payday now (demo)" : payButtonText(P);
   $("paySalary").style.display = s.settings.salaryEnabled ? "" : "none";
 
   $("offers").innerHTML = s.offers.map((o) => `<div class="offer"><span>${o.merchant}</span><b>${Math.round(o.rate * 100)}%</b></div>`).join("");
@@ -228,7 +233,7 @@ function renderPotManager(k) {
   const g = S.goals.find((x) => x.id === k);
   let form = "";
   if (!k) form = `<p class="small muted">No pots yet. Create one with New pot.</p>`;
-  else if (k === "salaryReserve") form = `<label class="small">Keep <input type="number" id="pe-weeks" min="1" max="12" value="${S.settings.reserveWeeks || 4}"> weeks of pay ready</label>`;
+  else if (k === "salaryReserve") form = `<label class="small">Keep <input type="number" id="pe-weeks" min="1" max="12" value="${S.settings.reserveWeeks || 4}"> weeks of income ready</label> <span class="small muted">This pot can be paused, not deleted.</span>`;
   else form = `<div class="pm-grid"><label class="small">Name <input id="pe-name" value="${g.name}" maxlength="40"></label>
       <label class="small">Target <span class="money"><b>$</b><input id="pe-target" type="number" min="1" value="${g.target}"></span></label>
       <label class="small">By <input id="pe-date" type="date" value="${g.deadline}"></label>
@@ -239,7 +244,7 @@ function renderPotManager(k) {
     ${form}
     <div class="row">${k ? `<button class="btn small-btn" id="pe-save">Save</button>` : ""}
       ${g ? `<button class="btn ghost small-btn" id="pe-dup">Duplicate</button>` : ""}
-      ${k ? `<button class="btn link small-btn" id="pe-del">${k === "salaryReserve" ? "Delete (turns weekly pay off)" : "Delete pot"}</button>` : ""}
+      ${k === "salaryReserve" ? `<button class="btn ghost small-btn" id="pe-pause">${S.settings.salaryEnabled ? "Pause steady income" : "Resume steady income"}</button>` : k ? `<button class="btn link small-btn" id="pe-del">Delete pot</button>` : ""}
       <button class="btn ghost small-btn" id="pe-new">+ New pot</button></div>`;
   if (g) m.querySelector("#pe-pri").value = String(g.priority || 2);
   m.querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => (m.querySelector("#pe-target").value = c.dataset.fill)));
@@ -251,6 +256,7 @@ function renderPotManager(k) {
       : { id: k, name: m.querySelector("#pe-name").value, target: m.querySelector("#pe-target").value, deadline: m.querySelector("#pe-date").value, priority: m.querySelector("#pe-pri").value };
     try { render(await api("POST", "/api/pots/update", body), [k]); profileLoaded = false; prefsLoaded = false; renderProfile(S); } catch (e) { alert(e.message); }
   };
+  if ($("pe-pause")) $("pe-pause").onclick = async () => { render(await api("POST", "/api/settings", { salaryEnabled: !S.settings.salaryEnabled }), ["salaryReserve"]); };
   if ($("pe-dup")) $("pe-dup").onclick = async () => { const r = await api("POST", "/api/pots/duplicate", { id: k }); potManagerKey = r.newId; render(r.state, [r.newId]); };
   if ($("pe-del")) $("pe-del").onclick = async () => {
     const note = k === "emergency" ? "SteadPal uses this pot first in weak months. " : "";
@@ -279,7 +285,7 @@ async function showEvidence(which) {
     <p class="small">Average of the ${e.usedMonths} counted months: <b>${usd(e.average)}</b>. Other (non-retainer) income per counted month: ${e.irregular.map(usd).join(", ")}.
     Active retainers: ${usd(e.recurring)}. Overdue invoices: ${usd(e.overdue)}.</p>
     <p class="small muted">${e.method}</p>
-    <p class="small">Untick a month that was unusual (a one-off project, a holiday) and everything recalculates: forecast, weekly pay suggestion, runway check. Tap a month to see its payments on Home.</p>`;
+    <p class="small">Untick a month that was unusual (a one-off project, a holiday) and everything recalculates: forecast, income suggestion, runway check. Tap a month to see its payments on Home.</p>`;
   box.hidden = false;
   $("evClose").onclick = () => (box.hidden = true);
   box.querySelectorAll("[data-month]").forEach((a) => (a.onclick = () => { showTab("home"); filterTx(a.dataset.month); $("txGrid").scrollIntoView({ behavior: "smooth", block: "center" }); }));
@@ -299,9 +305,12 @@ function prefFields(s) {
   const keep = Math.round(((s.settings.allocation || {}).keepAvailablePct || 0) * 100);
   return [
     { key: "taxRate", label: "Set aside for taxes", unit: "%", value: rate, options: [["0", "Don't set money aside"], ["15", "15%"], ["20", "20%"], ["25", "25% (common for freelancers)"], ["30", "30%"]], hint: `Self-employment tax alone is 15.3% ${i("seTax")}` },
-    { key: "weeklyPay", label: "Weekly pay from your reserve", unit: "$", value: !s.wallet.enabled ? "suggested" : !s.settings.salaryEnabled ? "off" : s.salary.userChosen ? s.salary.weekly : "suggested",
-      options: [["off", "Off: I manage my own pay"], ["suggested", `Suggested: ${usd(sg.weeklyPay)}/week`]], hint: "Suggested from your income history." },
-    { key: "reserveWeeks", label: "Keep this much weekly pay ready", unit: "weeks", value: s.settings.reserveWeeks || 4, options: [["2", "2 weeks"], ["4", "4 weeks (common)"], ["6", "6 weeks"], ["8", "8 weeks"]] },
+    { key: "payAmount", label: "Steady income from your reserve (per payday)", unit: "$", value: !s.wallet.enabled ? "suggested" : !s.settings.salaryEnabled ? "off" : s.salary.userChosen ? s.period.amount : "suggested",
+      options: [["off", "Paused: I manage my own pay"], ["suggested", `Suggested: ${usd(Math.round((sg.weeklyPay * 52) / s.period.perYear / 5) * 5)} per ${s.period.label}`]], hint: "Suggested from your income history." },
+    { key: "payFrequency", label: "How often", unit: "days", value: s.settings.payFrequency === "custom" ? (s.settings.payEveryDays || 10) : s.settings.payFrequency || "weekly",
+      options: [["weekly", "Weekly (Fridays)"], ["biweekly", "Every 2 weeks"], ["semimonthly", "Twice a month (15th and last day)"], ["monthly", "Monthly (1st)"]], customLabel: "Every … days" },
+    { key: "payMode", label: "How it reaches your Wallet", value: s.settings.payMode || "manual", options: [["manual", "Manual: I tap Send (default)"], ["automatic", "Automatic on each payday"]], noCustom: true },
+    { key: "reserveWeeks", label: "Keep this much income ready", unit: "weeks", value: s.settings.reserveWeeks || 4, options: [["2", "2 weeks"], ["4", "4 weeks (common)"], ["6", "6 weeks"], ["8", "8 weeks"]] },
     { key: "emergencyTarget", label: "Emergency fund target", unit: "$", value: eg ? eg.target : "none",
       options: [[String(sg.emergencyAmount), `Suggested for your income: ${usd(sg.emergencyAmount)}`], [String(sg.rentTimes3), `3 months of rent: ${usd(sg.rentTimes3)}`], [String(sg.expensesTimes3), `3 months of expenses: ${usd(sg.expensesTimes3)}`], [String(sg.expensesTimes6), `6 months of expenses: ${usd(sg.expensesTimes6)}`], ["none", "No emergency pot"]], hint: `Common guide: 3+ months of expenses ${i("emergency")}` },
     { key: "keepAvailablePct", label: "Keep available to spend from every payment", unit: "%", value: keep, options: [["0", "Nothing extra"], ["10", "10%"], ["20", "20%"], ["30", "30%"]] },
@@ -312,7 +321,7 @@ function buildPrefs(box, s) {
   box.innerHTML = `<div class="form2 prefs">${prefFields(s).map((f) => {
     const vals = f.options.map((o) => o[0]);
     const isCustom = !f.noCustom && !vals.includes(String(f.value));
-    return `<label>${f.label}<select data-pref="${f.key}">${f.options.map(([v, t]) => `<option value="${v}" ${String(f.value) === v ? "selected" : ""}>${t}</option>`).join("")}${f.noCustom ? "" : `<option value="custom" ${isCustom ? "selected" : ""}>Custom…</option>`}</select>
+    return `<label>${f.label}<select data-pref="${f.key}">${f.options.map(([v, t]) => `<option value="${v}" ${String(f.value) === v ? "selected" : ""}>${t}</option>`).join("")}${f.noCustom ? "" : `<option value="custom" ${isCustom ? "selected" : ""}>${f.customLabel || "Custom…"}</option>`}</select>
       ${f.noCustom ? "" : `<span class="custom" ${isCustom ? "" : "hidden"}><input type="number" min="0" data-custom="${f.key}" value="${isCustom ? f.value : ""}" placeholder="your number"> ${f.unit}</span>`}
       ${f.hint ? `<span class="sugg">${f.hint}</span>` : ""}</label>`;
   }).join("")}</div>`;
@@ -324,6 +333,8 @@ function readPrefs(box) {
     const k = sel.dataset.pref;
     let v = sel.value === "custom" ? box.querySelector(`[data-custom="${k}"]`).value : sel.value;
     if (k === "taxRate" || k === "keepAvailablePct") v = Number(v) / 100;
+    if (k === "payFrequency" && sel.value === "custom") { out.payFrequency = "custom"; out.payEveryDays = v; return; }
+    if (k === "payAmount") { if (v === "off") out.weeklyPay = "off"; else if (v === "suggested") out.weeklyPay = "suggested"; else out.payAmount = v; return; }
     out[k] = v;
   });
   return out;
@@ -350,11 +361,11 @@ function renderWallet(s) {
   $("wBar").innerHTML = parts.map(([k, v], idx) => `<i style="width:${(v / total) * 100}%;background:${color(k, idx)}" title="${nameOf(k)}"></i>`).join("");
   $("wList").innerHTML = parts.map(([k, v], idx) => `<div class="w-row"><span><i style="background:${color(k, idx)}"></i>${nameOf(k)}${k === "available" ? "" : ' <span class="muted small">label</span>'}</span><b>${usd(v)}</b></div>`).join("");
   const last = s.activity.find((a) => a.kind === "payment" && a.alloc);
-  const split = last ? Object.entries(last.alloc).map(([k, v]) => `${usd(v)} ${nameOf(k).toLowerCase()}`).join(" · ") : "$400 taxes · $900 weekly pay reserve · $300 emergency fund";
+  const split = last ? Object.entries(last.alloc).map(([k, v]) => `${usd(v)} ${nameOf(k).toLowerCase()}`).join(" · ") : "$400 taxes · $900 income reserve · $300 emergency fund";
   $("wFlow").innerHTML = [
     ["1", "A client pays", `${last ? usd(last.amount) : "$1,600"} lands in your PayPal balance, as usual.`],
     ["2", "SteadPal labels it", w.enabled ? `${split}. Same balance, just labelled.` : "Off: nothing is labelled. The whole payment is available."],
-    ["3", "Payday", w.enabled && s.settings.salaryEnabled ? `"Send this week's pay to my Wallet" moves ${usd(s.salary.weekly)} from the reserve label to Available to spend.` : "Weekly pay is off; you spend from Available as usual."],
+    ["3", "Payday", w.enabled && s.settings.salaryEnabled ? `${s.period.mode === "automatic" ? `Automatically on ${s.period.next}` : `"${payButtonText(s.period)}"`} moves ${usd(s.period.amount)} from the reserve label to Available to spend.` : "Steady income is paused; you spend from Available as usual."],
     ["4", "Spend as usual", "Pay with PayPal, use the PayPal debit card, or transfer to your bank."],
   ].map(([n, t, d]) => `<div class="w-step"><b>${n}</b><div><div class="w-st">${t}</div><div class="small muted">${d}</div></div></div>`).join("");
 }
@@ -380,7 +391,7 @@ $("spEnabled").onchange = async (e) => {
   e.target.checked = true;
   const p = S.pots, risks = [];
   if (S.tax.enabled) risks.push(`<b>Taxes:</b> ${p.tax ? `${usd(p.tax)} set aside for taxes becomes spending money, and n` : "N"}othing new is set aside for taxes. Estimated payments are still due${S.tax.nextDueDate ? ` (next: ${S.tax.nextDueDate})` : ""}.`);
-  if (S.settings.salaryEnabled) risks.push(`<b>Weekly pay stops:</b> no more ${usd(S.salary.weekly)} every week. In a weak month there is no reserve smoothing your income.`);
+  if (S.settings.salaryEnabled) risks.push(`<b>Steady income stops:</b> no more ${usd(S.period.amount)} every ${S.period.label}. In a weak month there is no reserve smoothing your income.`);
   if (p.emergency) risks.push(`<b>Emergency cushion:</b> ${usd(p.emergency)} is no longer kept apart, so it is easy to spend by accident.`);
   risks.push(`<b>Payments are no longer split:</b> cashback and round-ups go to your balance instead of your goals.`);
   if (S.forecast.weak) risks.push(`<b>Timing:</b> SteadPal expects a weak month ahead.`);
@@ -400,10 +411,14 @@ $("suSave").onclick = async () => {
   if ($("suRestoreChk") && $("suRestoreChk").checked) body.restore = true;
   const r = await api("POST", "/api/steadpal/setup", body);
   $("setup").hidden = true; prefsLoaded = false; profileLoaded = false; render(r);
-  toast("✅ SteadPal is on", [["Taxes", r.tax.enabled ? Math.round(r.tax.rate * 100) + "%" : "off"], ["Weekly pay", r.settings.salaryEnabled ? usd(r.salary.weekly) : "off"], ["Emergency target", r.goals.find((g) => g.id === "emergency") ? usd(r.goals.find((g) => g.id === "emergency").target) : "none"]]);
+  toast("✅ SteadPal is on", [["Taxes", r.tax.enabled ? Math.round(r.tax.rate * 100) + "%" : "off"], ["Steady income", r.settings.salaryEnabled ? `${usd(r.period.amount)} / ${r.period.label}` : "paused"], ["Emergency target", r.goals.find((g) => g.id === "emergency") ? usd(r.goals.find((g) => g.id === "emergency").target) : "none"]]);
 };
 $("wSetup").onclick = openSetup;
 $("wHome").onclick = () => showTab("home");
+
+function payButtonText(P) {
+  return P.freq === "weekly" ? "Send this week's income to my Wallet" : P.freq === "monthly" ? "Send this month's income to my Wallet" : "Send this payday's income to my Wallet";
+}
 
 async function refresh(flash) { render(await api("GET", "/api/state"), flash); }
 const flashFrom = (alloc) => Object.keys(alloc || {}).filter((k) => k !== "unassigned");
@@ -452,7 +467,7 @@ $("simShop").onclick = async () => {
   render(r.state, [r.route.goal]);
 };
 $("paySalary").onclick = async () => {
-  try { const r = await api("POST", "/api/salary/pay"); render(r.state, ["salaryReserve"]); toast(`💵 ${usd(r.paid)} sent to your Wallet`, [["From", "Weekly pay reserve"], ["To", "Available to spend"]]); }
+  try { const r = await api("POST", "/api/salary/pay"); render(r.state, ["salaryReserve"]); toast(`💵 ${usd(r.paid)} sent to your Wallet`, [["From", "Income reserve"], ["To", "Available to spend"]]); }
   catch (e) { alert(e.message); }
 };
 $("salaryToggle").onchange = async (e) => render(await api("POST", "/api/settings", { salaryEnabled: e.target.checked }));
@@ -496,7 +511,7 @@ $("wiBtn").onclick = async () => {
   $("wiResult").innerHTML = `<div class="mini">
     <div><span>Free each month</span><b>${usd(r.freeAfter)}</b><small>${r.freeChange ? (r.freeChange > 0 ? "+" : "−") + usd(Math.abs(r.freeChange)) : "no change"}</small></div>
     <div><span>${r.emergencyName} ready in</span><b>${mo(r.emergencyMonthsAfter)}</b><small>now ${mo(r.emergencyMonthsNow)}</small></div>
-    <div><span>Weekly pay covers costs?</span><b>${r.weeklyPayCoversCosts ? "Yes" : "No"}</b><small>${usd(r.weeklyPay)}/wk vs ${usd(r.expensesAfter)}/mo</small></div>
+    <div><span>Your income covers costs?</span><b>${r.weeklyPayCoversCosts ? "Yes" : "No"}</b><small>${usd(S.period.amount)}/${S.period.label} vs ${usd(r.expensesAfter)}/mo</small></div>
     <div><span>Purchase vs your cushion</span><b>${r.spendShareOfReserve == null ? "—" : Math.round(r.spendShareOfReserve * 100) + "%"}</b><small>of reserve + emergency fund</small></div></div>`;
   $("wiOut").textContent = r.explanation;
   return r;
@@ -525,7 +540,7 @@ $("reportBtn").onclick = async () => {
       x.avgDaysLate == null ? "—" : `<span class="pill ${x.avgDaysLate > 7 ? "warn" : "ok"}">${x.avgDaysLate} day${x.avgDaysLate === 1 ? "" : "s"}</span>`, pct(x.onTimeShare), x.overdueNow ? usd(x.overdueNow) : "—", x.viaPayPal ? "✅" : "—"]));
   } else if (r.type === "cashflow") {
     stats = mini([["Came in", usd(r.totalIn)], ["Left for goals", usd(r.totalNet)], ["Short months", r.negativeMonths]]);
-    tbl = table(["Month", "Income", "Taxes", r.payLabel === "weekly pay" ? "Weekly pay" : "Expenses", "Left"], r.rows.map((x) => [x.month, usd(x.income), usd(x.taxes), usd(x.pay), `<b class="${x.net < 0 ? "neg" : "pos"}">${usd(x.net)}</b>`]));
+    tbl = table(["Month", "Income", "Taxes", r.payLabel === "weekly pay" ? "Steady income" : "Expenses", "Left"], r.rows.map((x) => [x.month, usd(x.income), usd(x.taxes), usd(x.pay), `<b class="${x.net < 0 ? "neg" : "pos"}">${usd(x.net)}</b>`]));
   } else if (r.type === "taxes") {
     stats = r.enabled ? mini([["Set aside", usd(r.setAside)], ["Next due", r.nextDueDate || "—"], ["Paid this year", usd(r.paidYtd)], ["Not covered yet", usd(Math.max(0, r.gap))]]) : "";
     tbl = r.payments.length ? table(["Date", "Payment", "Note"], r.payments.map((x) => [x.date, usd(x.amount), x.note || ""])) : "";
@@ -533,7 +548,7 @@ $("reportBtn").onclick = async () => {
     tbl = table(["Goal", "Saved", "Target", "Progress", "Needed / month", "By"], r.goals.map((g) => [g.name, usd(g.saved), usd(g.target), pct(g.progress), usd(g.neededPerMonth), g.deadline]));
   }
   if (!["taxes", "goals"].includes(r.type) && r.periodLabel) {
-    const selfNote = r.selfReportedInPeriod ? (r.includeSelf ? ` · <span class="pill warn">Modified report: includes ${usd(r.selfReportedInPeriod)} self-reported or outside PayPal, not verified</span>` : ` · PayPal income only (${usd(r.selfReportedInPeriod)} outside PayPal left out)`) : "";
+    const selfNote = r.selfReportedInPeriod ? (r.includeSelf ? ` · <span class="pill warn">Modified report: includes ${usd(r.selfReportedInPeriod)} self-reported or outside PayPal, not verified</span>` : "") : "";
     stats = `<div class="small muted">${r.periodLabel}${selfNote}</div>` + stats;
   }
   $("repStats").innerHTML = stats; $("repTable").innerHTML = tbl;
@@ -567,8 +582,8 @@ $("rwBtn").onclick = async () => {
   const r = await api("POST", "/api/runway", { months: Number($("rwMonths").value) });
   const p = Math.round(r.probSafe * 100);
   $("rwOut").innerHTML = `<div class="rw"><div class="gauge ${p >= 90 ? "ok" : p >= 75 ? "mid" : "bad"}"><b>${p}%</b><span>safe</span></div>
-    <div>${mini([["Weekly pay", r.weekly ? usd(r.weekly) : "off"], ["Reserve today", usd(r.startingBuffer)], ["Typical in " + r.months + " mo", usd(r.medianEnd)], ["Bad case (1 in 10)", usd(r.badCaseEnd)]])}
-    ${r.safeWeeklyAt95 != null && r.weekly ? `<div class="small muted">Highest weekly pay that stays 95% safe: <b>${usd(r.safeWeeklyAt95)}</b></div>` : ""}</div></div>${fanChart(r.band, r.startingBuffer)}`;
+    <div>${mini([["Steady income", r.weekly ? `${usd(S.period.amount)} / ${S.period.label}` : "paused"], ["Reserve today", usd(r.startingBuffer)], ["Typical in " + r.months + " mo", usd(r.medianEnd)], ["Bad case (1 in 10)", usd(r.badCaseEnd)]])}
+    ${r.safeWeeklyAt95 != null && r.weekly ? `<div class="small muted">Highest income per ${S.period.label} that stays 95% safe: <b>${usd(Math.round((r.safeWeeklyAt95 * 52) / S.period.perYear / 5) * 5)}</b></div>` : ""}</div></div>${fanChart(r.band, r.startingBuffer)}`;
   $("rwText").textContent = r.explanation;
   return r;
 };
@@ -619,10 +634,12 @@ function renderProfile(s) {
   if (profileLoaded) return; // don't overwrite what the user is typing
   // Your numbers
   $("nRent").value = s.settings.rent ?? ""; $("nExp").value = s.settings.fixedMonthlyExpenses ?? "";
-  $("nWeekly").value = s.settings.weeklyPay || ""; $("nWeeks").value = s.settings.reserveWeeks || 4;
+  $("nWeekly").value = s.salary.userChosen ? s.period.amount : ""; $("nWeeks").value = s.settings.reserveWeeks || 4;
+  $("nWeeklyLbl").textContent = `Income per payday (every ${s.period.label})`;
   const eg = s.goals.find((g) => g.id === "emergency");
   $("nEmerg").value = eg ? eg.target : ""; $("nEmerg").disabled = !eg;
-  $("sWeekly").innerHTML = `Suggested from your history: <button type="button" class="chip" data-wk="${s.suggestions.weeklyPay}">${usd(s.suggestions.weeklyPay)}</button> or leave empty to follow it`;
+  const sugP = Math.round((s.suggestions.weeklyPay * 52) / s.period.perYear / 5) * 5;
+  $("sWeekly").innerHTML = `Suggested from your history: <button type="button" class="chip" data-wk="${sugP}">${usd(sugP)}</button> or leave empty to follow it. Frequency and manual/automatic: SteadPal preferences above.`;
   $("sWeekly").querySelector("[data-wk]").onclick = (e) => { $("nWeekly").value = e.target.dataset.wk; numberNotes(); };
   $("sEmerg").innerHTML = eg ? emergencyChips() + ` ${i("emergency")}` : "You deleted the emergency pot; add one on Home if you want it back.";
   $("sEmerg").querySelectorAll("[data-fill]").forEach((c) => (c.onclick = () => { $("nEmerg").value = c.dataset.fill; numberNotes(); }));
@@ -645,23 +662,24 @@ function renderProfile(s) {
 // Gentle notes: SteadPal comments, the user decides. Nothing here blocks a save.
 function numberNotes() {
   const sg = S.suggestions, notes = [];
-  const rent = Number($("nRent").value), exp = Number($("nExp").value), wk = Number($("nWeekly").value) || sg.weeklyPay;
+  const P = S.period;
+  const rent = Number($("nRent").value), exp = Number($("nExp").value), wk = Number($("nWeekly").value) ? (Number($("nWeekly").value) * P.perYear) / 52 : sg.weeklyPay;
   const em = Number($("nEmerg").value), weeks = Number($("nWeeks").value);
   if (exp && rent > exp) notes.push("Rent is higher than your total fixed expenses: does the expenses figure include rent?");
-  if (wk > sg.weeklyPay * 1.1) notes.push(`A weekly pay of ${usd(wk)} is above what your recent income supports (${usd(sg.weeklyPay)}). It looks like you may be overstretching; the Runway check on Analysis shows how safe it is.`);
-  if ((wk * 52) / 12 > sg.afterTaxMean) notes.push("That weekly pay is more than you earn on average after taxes, so the reserve would shrink over time.");
-  if (exp && wk && (wk * 52) / 12 < exp * 0.9) notes.push(`Your weekly pay (${usd(Math.round((wk * 52) / 12))}/month) is below your fixed expenses (${usd(exp)}).`);
+  if (wk > sg.weeklyPay * 1.1) notes.push(`${usd(Math.round((wk * 52) / P.perYear))} every ${P.label} is above what your recent income supports (${usd(Math.round((sg.weeklyPay * 52) / P.perYear / 5) * 5)}). It looks like you may be overstretching; the Runway check on Analysis shows how safe it is.`);
+  if ((wk * 52) / 12 > sg.afterTaxMean) notes.push("That income is more than you earn on average after taxes, so the reserve would shrink over time.");
+  if (exp && wk && (wk * 52) / 12 < exp * 0.9) notes.push(`Your steady income (${usd(Math.round((wk * 52) / 12))}/month) is below your fixed expenses (${usd(exp)}).`);
   if (em && exp && em < exp) notes.push(`Your emergency target covers less than one month of expenses. A common guide is at least three months ${i("emergency")}.`);
   if (em && sg.emergencyAmount && em > sg.expensesTimes6 * 1.5) notes.push("That's a large cushion: past about 9 months of expenses, some people move the extra toward other goals.");
-  if (weeks && weeks < 2) notes.push("With less than 2 weeks of pay in reserve, one late client can interrupt your weekly pay.");
+  if (weeks && weeks < 2) notes.push("With less than 2 weeks of income in reserve, one late client can interrupt your steady income.");
   $("numNotes").innerHTML = notes.map((n) => `<div class="note">${n}</div>`).join("") ||
     `<div class="muted small">Your income changes by about ${Math.round(sg.irregularity * 100)}% from month to month, so SteadPal suggests a cushion of about ${sg.emergencyMonths} months of expenses. More irregular income means a bigger suggestion.</div>`;
 }
 ["nRent", "nExp", "nWeekly", "nWeeks", "nEmerg"].forEach((id) => ($(id).oninput = numberNotes));
 $("nSave").onclick = async () => {
-  const r = await api("POST", "/api/profile/numbers", { rent: $("nRent").value, expenses: $("nExp").value, weeklyPay: $("nWeekly").value, reserveWeeks: $("nWeeks").value, emergencyTarget: $("nEmerg").value });
+  const r = await api("POST", "/api/profile/numbers", { rent: $("nRent").value, expenses: $("nExp").value, payAmount: $("nWeekly").value, reserveWeeks: $("nWeeks").value, emergencyTarget: $("nEmerg").value });
   render(r, ["emergency", "salaryReserve"]);
-  $("nMsg").textContent = `Saved. Weekly pay: ${usd(r.salary.weekly)}${r.salary.userChosen ? " (your choice)" : " (suggested)"}.`;
+  $("nMsg").textContent = `Saved. Steady income: ${usd(r.period.amount)} every ${r.period.label}${r.salary.userChosen ? " (your choice)" : " (suggested)"}.`;
 };
 $("abSave").onclick = async () => {
   const r = await api("POST", "/api/profile/about", {
@@ -798,7 +816,7 @@ const STEPS = [
     showTab("wallet");
     $("guideCaption").textContent = "Meet Ana: freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500. SteadPal lives inside her PayPal Wallet: one balance, labelled into pots.";
   },
-  async () => spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. It warns her about the weak month before it happens, and shows her weekly pay is still protected."),
+  async () => spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. It warns her about the weak month before it happens, and shows her steady income is still protected."),
   async () => {
     if (S.openInvoices.length) await draftReminder(S.openInvoices[0].id);
     spot("nudge", "The AI drafts a polite reminder for the late $1,600 invoice. Ana edits it if she wants and sends it through PayPal.");
@@ -808,7 +826,7 @@ const STEPS = [
       spot("payButtons", "The client pays the overdue invoice with PayPal. Pay with the sandbox buyer account to see the AI split it.");
     } else {
       await $("simPay").onclick();
-      spot("pots", "The late $1,600 arrives through PayPal. The AI splits it: taxes, weekly pay reserve, emergency fund, and the code checks every dollar.");
+      spot("pots", "The late $1,600 arrives through PayPal. The AI splits it: taxes, income reserve, emergency fund, and the code checks every dollar.");
     }
   },
   async () => {
@@ -830,7 +848,7 @@ const STEPS = [
   async () => {
     $("rwMonths").value = "6";
     const r = await $("rwBtn").onclick();
-    spot("rwOut", `Is her weekly pay safe? SteadPal runs 1,000 possible futures from her own history: ${Math.round(r.probSafe * 100)} in 100 keep her pay covered for 6 months. The AI explains; the math decides.`);
+    spot("rwOut", `Is her steady income safe? SteadPal runs 1,000 possible futures from her own history: ${Math.round(r.probSafe * 100)} in 100 keep her pay covered for 6 months. The AI explains; the math decides.`);
   },
   async () => {
     $("ppMonths").value = "6";

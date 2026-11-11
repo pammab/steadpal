@@ -147,6 +147,29 @@ function safeWeeklySalary(stats, settings) {
   };
 }
 
+// ---------- steady income: how often and how it is paid (user's choice) ----------
+const FREQ = {
+  weekly: { perYear: 52, label: "week", adj: "Weekly" },
+  biweekly: { perYear: 26, label: "2 weeks", adj: "Biweekly" },
+  semimonthly: { perYear: 24, label: "half month", adj: "Twice-monthly" },
+  monthly: { perYear: 12, label: "month", adj: "Monthly" },
+};
+function payPeriod(settings, weekly, today) {
+  const f = FREQ[settings.payFrequency] ? settings.payFrequency : settings.payFrequency === "custom" ? "custom" : "weekly";
+  let perYear, label, adj;
+  if (f === "custom") { const n = clamp(Math.round(Number(settings.payEveryDays) || 10), 1, 90); perYear = 365 / n; label = `${n} days`; adj = "Steady"; }
+  else ({ perYear, label, adj } = FREQ[f]);
+  const amount = round((weekly * 52) / perYear, 5);
+  // next payday (simulated calendar): Friday, the 15th/last day, the 1st, or today + N days
+  const t = toDate(today), d = new Date(t);
+  if (f === "weekly" || f === "biweekly") d.setUTCDate(t.getUTCDate() + ((5 - t.getUTCDay() + 7) % 7 || 7));
+  else if (f === "semimonthly") { if (t.getUTCDate() < 15) d.setUTCDate(15); else d.setUTCMonth(t.getUTCMonth() + 1, 0); }
+  else if (f === "monthly") d.setUTCMonth(t.getUTCMonth() + 1, 1);
+  else d.setUTCDate(t.getUTCDate() + Math.round(365 / perYear));
+  return { freq: f, perYear: +perYear.toFixed(2), label, adj, title: f === "custom" ? `Steady income · every ${label}` : `${adj} income`, amount,
+    mode: settings.payMode === "automatic" ? "automatic" : "manual", next: d.toISOString().slice(0, 10) };
+}
+
 // ---------- goals ----------
 function monthsBetween(a, b) {
   const d1 = toDate(a), d2 = toDate(b);
@@ -414,7 +437,8 @@ function passportSummary(data, periodMonths = 6, threshold) {
   if (data.settings.salaryEnabled) {
     // Same weekly pay the app uses everywhere: based on the last 6 months.
     const salary = safeWeeklySalary(incomeStats(monthlyIncome(data.transactions, statsMonths(data))), data.settings);
-    out.scheduledWeeklyPay = `$${salary.weekly}/week from the user's own reserve (separate fact, not income)`;
+    const pp = payPeriod(data.settings, salary.weekly, data.user.today);
+    out.scheduledWeeklyPay = `$${pp.amount} every ${pp.label} from the user's own reserve (separate fact, not income)`;
   }
   return out;
 }
@@ -437,7 +461,7 @@ function monthlyReport(data) {
 }
 
 module.exports = {
-  statsMonths, emergencyGoal,
+  statsMonths, emergencyGoal, payPeriod,
   lastMonths, monthlyIncome, incomeStats, forecastNextMonth, reserveTarget, safeWeeklySalary,
   goalStatus, planSplit, validatePlan, routeCashback, whatIfPurchase, passportSummary, monthlyReport,
   whatIfPlan, periodReport, monthsBetween,

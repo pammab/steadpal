@@ -22,13 +22,13 @@ function template(kind, d) {
       const bits = [];
       if (ended) bits.push(`your retainer with ${ended.payer} ended`);
       if (late) bits.push(`a $${$n(late.amount)} invoice is ${late.daysLate} days late`);
-      return `Heads up: ${bits.join(" and ")}. Next month looks like $${$n(d.low)}-$${$n(d.high)} (your average is $${$n(d.historyMean)}), so I'll keep your weekly pay coming from your reserve and put the emergency fund first.`;
+      return `Heads up: ${bits.join(" and ")}. Next month looks like $${$n(d.low)}-$${$n(d.high)} (your average is $${$n(d.historyMean)}), so I'll keep your steady income coming from your reserve and put the emergency fund first.`;
     }
     case "split": {
       const a = d.alloc;
-      const label = { tax: "to taxes", salaryReserve: "to your weekly pay reserve", emergency: "to your emergency fund", laptop: "to your laptop goal", unassigned: "left free in your balance", available: "kept available to spend" };
+      const label = { tax: "to taxes", salaryReserve: "to your income reserve", emergency: "to your emergency fund", laptop: "to your laptop goal", unassigned: "left free in your balance", available: "kept available to spend" };
       const parts = Object.entries(a).map(([k, v]) => `$${$n(v)} ${label[k] || "to " + k}`).join(", ");
-      return `Your $${$n(d.amount)} payment is split: ${parts}. ${d.forecast.weak ? "Because a weak month is coming, I refilled your weekly pay reserve first and sent the rest to your emergency fund." : "Your goals are on track."}`;
+      return `Your $${$n(d.amount)} payment is split: ${parts}. ${d.forecast.weak ? "Because a weak month is coming, I refilled your income reserve first and sent the rest to your emergency fund." : "Your goals are on track."}`;
     }
     case "cashback":
       return `Your $${$n(d.amount)} cashback went to "${d.goalName}", the goal that's furthest behind (${Math.round(d.progress * 100)}% done).`;
@@ -47,7 +47,7 @@ function template(kind, d) {
         else parts.push(`your ${ef} would be ready in about ${d.emergencyMonthsAfter} months instead of ${d.emergencyMonthsNow}`);
       }
       if (d.freeChange) parts.push(`you'd have $${$n(Math.abs(d.freeChange))} ${d.freeChange > 0 ? "more" : "less"} free each month`);
-      if (d.costs && !d.weeklyPayCoversCosts) parts.push(`your $${$n(d.weeklyPay)} weekly pay would no longer cover monthly costs of $${$n(d.expensesAfter)}`);
+      if (d.costs && !d.weeklyPayCoversCosts) parts.push(`your $${$n(d.weeklyPay)} weekly income would no longer cover monthly costs of $${$n(d.expensesAfter)}`);
       if (d.spendShareOfReserve >= 0.5) parts.push(`the purchase equals ${Math.round(d.spendShareOfReserve * 100)}% of your reserve and emergency fund`);
       return parts.length ? `If you make these changes, ${parts.join("; ")}. This is an illustration, not a recommendation.` : "Change one of the values to see the effect.";
     }
@@ -64,8 +64,8 @@ function template(kind, d) {
     }
     case "runway":
       return `In ${Math.round(d.probSafe * 100)}% of ${d.simulations.toLocaleString("en-US")} simulated futures based on your own income history, ` +
-        (d.weekly ? `your $${$n(d.weekly)} weekly pay stays covered for the next ${d.months} months. ` : `your expenses stay covered for the next ${d.months} months. `) +
-        `In a bad case (1 in 10) you'd end with about $${$n(d.badCaseEnd)} in reserve` + (d.safeWeeklyAt95 != null && d.weekly && d.safeWeeklyAt95 < d.weekly ? `; a weekly pay of $${$n(d.safeWeeklyAt95)} would bring you to 95% safe.` : ".");
+        (d.weekly ? `your $${$n(d.weekly)} weekly income stays covered for the next ${d.months} months. ` : `your expenses stay covered for the next ${d.months} months. `) +
+        `In a bad case (1 in 10) you'd end with about $${$n(d.badCaseEnd)} in reserve` + (d.safeWeeklyAt95 != null && d.weekly && d.safeWeeklyAt95 < d.weekly ? `; a weekly income of $${$n(d.safeWeeklyAt95)} would bring you to 95% safe.` : ".");
     case "report_clients": {
       const late = d.rows.filter((r) => r.avgDaysLate > 7).map((r) => `${r.client} pays about ${r.avgDaysLate} days late on average`);
       return `${d.concentration ? `${d.concentration.client} brings ${Math.round(d.concentration.share * 100)}% of your income${d.concentration.high ? ", which is a lot to depend on" : ""}. ` : ""}` +

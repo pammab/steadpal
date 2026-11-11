@@ -273,3 +273,15 @@ h2.mt { margin-top:18px; }
 .lockup .slogan { font-size:17px; font-weight:800; color:#2470e6; margin-top:3px; }
 .lockup .support-h { font-size:14px; color:#6b7893; font-style:italic; margin-top:2px; }
 @media (max-width:640px){ .lockup .logo { width:44px; height:44px; } .lockup .brand { font-size:24px; } .lockup .tag { font-size:13px; } .lockup .slogan { font-size:15px; } }
+
+/* guided demo frozen at the bottom; PayPal buttons kept inside their cards */
+.guide { position: fixed; z-index: 1000; inset: auto 0 0 0; display: block; padding: 8px 16px 10px; background: #14213d; color: #fff; box-shadow: 0 -6px 20px rgba(11,31,77,.25); }
+.guide-steps { display: flex; align-items: center; gap: 8px; overflow-x: auto; white-space: nowrap; scrollbar-width: thin; padding-bottom: 2px; }
+.guide-steps .step { flex: none; }
+.guide-caption { font-size: 14px; color: #dbe4ff; margin: 0 0 6px; }
+.guide-caption:empty { display: none; }
+body { padding-bottom: 92px; }
+.toast { bottom: 96px; }
+#payButtons, #shopButtons, .pp, .product .pp { position: relative; z-index: 0; isolation: isolate; }
+.top { position: relative; z-index: 1; }
+@media (max-width:640px){ .guide { padding: 6px 8px 8px; } .guide-title { display:none; } .guide-caption { font-size: 13px; } body { padding-bottom: 80px; } .toast { bottom: 84px; } }
