@@ -22,12 +22,13 @@
     <span class="guide-title">Guided demo</span>
     <button data-step="0" class="step">Start</button>
     <button data-step="1" class="step">1 · Weak month ahead</button>
-    <button data-step="2" class="step">2 · Client pays $1,600</button>
-    <button data-step="3" class="step">3 · Partner cashback</button>
-    <button data-step="4" class="step">4 · What if: $1,400 laptop</button>
-    <button data-step="5" class="step">5 · Runway risk</button>
-    <button data-step="6" class="step">6 · Income passport</button>
-    <button data-step="7" class="step">7 · Clients report</button>
+    <button data-step="2" class="step">2 · AI reminder</button>
+    <button data-step="3" class="step">3 · Client pays $1,600</button>
+    <button data-step="4" class="step">4 · Partner cashback</button>
+    <button data-step="5" class="step">5 · What if: $1,400 laptop</button>
+    <button data-step="6" class="step">6 · Runway risk</button>
+    <button data-step="7" class="step">7 · Income passport</button>
+    <button data-step="8" class="step">8 · Clients report</button>
     <div class="guide-caption" id="guideCaption">Follow Ana, a freelance designer whose income changes every month.</div>
   </nav>
 
@@ -37,19 +38,17 @@
     <button data-tab="profile" class="tab">Profile</button>
   </nav>
 
-  <main class="grid">
-    <section data-tab="home" class="card wide forecast" id="forecast">
-      <h2>Next month</h2>
-      <div id="weakAlert" class="alert" hidden></div>
-      <div id="forecastBody" class="muted">Loading…</div>
-    </section>
-
-    <section data-tab="home" class="card wide">
+  <main class="layout">
+    <!-- ================= HOME ================= -->
+    <div class="lrow r1" data-tab="home">
+    <section class="card">
       <h2>Your pots <span class="muted small">labels over your PayPal balance · money never leaves your account</span></h2>
       <div class="pots" id="pots"></div>
     </section>
+    </div>
 
-    <section data-tab="home" class="card">
+    <div class="lrow r3" data-tab="home">
+    <section class="card">
       <h2>Get paid</h2>
       <div id="invoices"></div>
       <div id="nudge" class="nudge" hidden>
@@ -61,14 +60,12 @@
       <button id="simPay" class="btn">Simulate the late $1,600 payment</button>
       <p class="hint" id="payHint"></p>
     </section>
-
-    <section data-tab="home" class="card">
+    <section class="card">
       <h2>Weekly pay <label class="switch"><input type="checkbox" id="salaryToggle"><span>on</span></label></h2>
       <div id="salaryBody"></div>
       <button id="paySalary" class="btn ghost">Send this week's pay</button>
     </section>
-
-    <section data-tab="home" class="card">
+    <section class="card">
       <h2>Partner cashback</h2>
       <p class="muted small">Pay with PayPal at a partner. The cashback goes to the goal that needs it most.</p>
       <div class="row">
@@ -81,8 +78,10 @@
       <div id="shopButtons"></div>
       <button id="simShop" class="btn ghost">Buy a $120 stylus at InkLine Store (5%)</button>
     </section>
+    </div>
 
-    <section data-tab="home" class="card">
+    <div class="lrow r2" data-tab="home">
+    <section class="card">
       <h2>New goal</h2>
       <div class="sentence">I want <span class="money"><b>$</b><input id="gAmount" type="number" min="1" value="600"></span>
         by <input id="gDate" type="date"> for <input id="gPurpose" placeholder="a design conference" value="a design conference"></div>
@@ -90,8 +89,7 @@
       <div class="row"><button id="gCheck" class="btn ghost">Check the plan</button><button id="gSave" class="btn">Save goal</button></div>
       <p class="hint" id="goalOut"></p>
     </section>
-
-    <section data-tab="home" class="card wide">
+    <section class="card">
       <h2>Income passport <label class="switch"><input type="checkbox" id="passportToggle"><span>on</span></label></h2>
       <p class="muted small">Facts only, from PayPal commercial payments by verified clients. You choose the period; the most recent months are always used.</p>
       <div class="row">
@@ -101,23 +99,34 @@
       </div>
       <div id="ppOut"></div>
     </section>
+    </div>
 
-    <section data-tab="home" class="card wide">
+    <div class="lrow r1" data-tab="home">
+    <section class="card">
+      <h2>PayPal transactions <span class="muted small">sort, filter, see what counts for the passport · powered by AG Grid</span></h2>
+      <div id="txGrid" class="ag-theme-quartz tx-grid"></div>
+    </section>
+    </div>
+
+    <div class="lrow r1" data-tab="home">
+    <section class="card">
       <h2>Activity</h2>
       <ul id="activity" class="activity"></ul>
       <button id="reset" class="btn link">Reset demo</button>
     </section>
+    </div>
 
-    <!-- ================= ANALYSIS TAB ================= -->
-    <section data-tab="analysis" class="card wide" id="runwayCard">
-      <h2>Runway risk check <span class="muted small">1,000 simulated futures from your own income history</span></h2>
-      <div class="row"><label class="small muted">Look ahead <select id="rwMonths"><option value="3">3 months</option><option value="6" selected>6 months</option><option value="12">12 months</option></select></label>
-        <button id="rwBtn" class="btn">Run the check</button></div>
-      <div id="rwOut"></div>
-      <p class="hint" id="rwText"></p>
-      <p class="muted small" id="rwMethod"></p>
+    <!-- ================= ANALYSIS ================= -->
+    <div class="lrow r1" data-tab="analysis">
+    <section class="card forecast" id="forecast">
+      <h2>Next month</h2>
+      <div id="weakAlert" class="alert" hidden></div>
+      <div id="forecastBody" class="muted">Loading…</div>
     </section>
-    <section data-tab="analysis" class="card wide">
+    </div>
+
+    <div class="lrow r1" data-tab="analysis">
+    <section class="card">
       <h2>Reports</h2>
       <div class="row">
         <select id="repType"><option value="income">Income</option><option value="clients">Clients &amp; reliability</option><option value="cashflow">Cash flow</option><option value="taxes">Taxes</option><option value="goals">Goals</option></select>
@@ -133,7 +142,10 @@
         <p class="hint" id="askOut"></p>
       </div>
     </section>
-    <section data-tab="analysis" class="card">
+    </div>
+
+    <div class="lrow r2" data-tab="analysis">
+    <section class="card">
       <h2>What if…</h2>
       <div class="wi">
         <label>I spend now <span class="money"><b>$</b><input id="wiPrice" type="number" min="0" value="1400"></span></label>
@@ -147,9 +159,14 @@
       <p class="hint" id="wiOut"></p>
       <p class="muted small" id="wiSource"></p>
     </section>
+    <section class="card" id="taxCard">
+      <h2>Taxes <span class="muted small">optional · estimates</span></h2>
+      <div id="taxBody"></div>
+    </section>
+    </div>
 
-
-    <section data-tab="analysis" class="card wide">
+    <div class="lrow r1" data-tab="analysis">
+    <section class="card">
       <h2>Save &amp; invest: learn and compare <span class="muted small">bar = interest earned · tap an option to learn</span></h2>
       <p class="muted small">Education only, not advice. Rates from official sources, with dates.</p>
       <div class="wi">
@@ -160,19 +177,23 @@
       <button id="ivBtn" class="btn ghost">Compare options</button>
       <div id="ivOut"></div>
     </section>
+    </div>
 
-    <section data-tab="analysis" class="card" id="taxCard">
-      <h2>Taxes <span class="muted small">optional · estimates</span></h2>
-      <div id="taxBody"></div>
+    <div class="lrow r1" data-tab="analysis">
+    <section class="card" id="runwayCard">
+      <h2>Runway risk check <span class="muted small">1,000 simulated futures from your own income history</span></h2>
+      <div class="row"><label class="small muted">Look ahead <select id="rwMonths"><option value="3">3 months</option><option value="6" selected>6 months</option><option value="12">12 months</option></select></label>
+        <button id="rwBtn" class="btn">Run the check</button></div>
+      <div id="rwOut"></div>
+      <p class="hint" id="rwText"></p>
+      <p class="muted small" id="rwMethod"></p>
+      <p class="fine"><b>When to use it:</b> before raising your weekly pay, making a big purchase, or when a client leaves. <b>How to read it:</b> the percentage is the share of 1,000 simulated futures in which your reserve and emergency fund never run out; the shaded band is where 8 in 10 of those futures end up. <b>Limits:</b> it only knows your last 6 months of income and assumes the future looks like the past, so it can't see new clients, losing a client, or one-off costs. It is a planning aid, not a guarantee or financial advice.</p>
     </section>
-    <section data-tab="analysis" class="card wide">
-      <h2>PayPal transactions <span class="muted small">sort, filter, see what counts for the passport · powered by AG Grid</span></h2>
-      <div id="txGrid" class="ag-theme-quartz tx-grid"></div>
-    </section>
+    </div>
 
-
-    <!-- ================= PROFILE TAB ================= -->
-    <section data-tab="profile" class="card wide">
+    <!-- ================= PROFILE ================= -->
+    <div class="lrow r1" data-tab="profile">
+    <section class="card">
       <h2>Your business &amp; taxes <label class="switch"><input type="checkbox" id="tpEnabled"><span>set money aside for taxes</span></label></h2>
       <p class="muted small">Optional. Tell SteadPal about your work so estimates fit you. You choose the rates; SteadPal never guesses your tax bill.</p>
       <div class="form2">
@@ -181,18 +202,24 @@
         <label>State<input id="tpState" maxlength="20" placeholder="e.g. CA"></label>
         <label>Federal set-aside %<input id="tpFed" type="number" min="0" max="60" step="0.5"></label>
         <label>State set-aside %<input id="tpStateRate" type="number" min="0" max="20" step="0.5"></label>
-        <label>Payment dates<input id="tpDates" placeholder="2026-06-15, 2026-09-15"></label>
       </div>
+      <div class="dates"><div class="small muted">Tax payment dates</div>
+        <div id="tpDates" class="datelist"></div>
+        <button id="tpAddDate" class="btn ghost small-btn" type="button">+ Add a date</button></div>
       <p class="muted small">Tip: self-employment tax alone is 15.3% (Social Security and Medicare) on most of your net earnings, before income tax. Federal estimated payments are usually due Apr 15, Jun 15, Sep 15 and Jan 15. Your state may differ.</p>
       <button id="tpSave" class="btn">Save</button> <span class="small muted" id="tpMsg"></span>
     </section>
+    </div>
 
-    <section data-tab="profile" class="card">
+    <div class="lrow r2" data-tab="profile">
+    <section class="card">
       <h2>Round-ups <label class="switch"><input type="checkbox" id="ruEnabled"><span>on</span></label></h2>
       <p class="muted small">Optional. When you pay with PayPal, the spare change goes to the goal that needs it most.</p>
       <label class="small">Round up to the next <select id="ruStep"><option value="1">$1</option><option value="5">$5</option><option value="10">$10</option></select></label>
       <p class="hint" id="ruOut"></p>
     </section>
+    </div>
+
   </main>
 
   <footer class="muted small">Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>

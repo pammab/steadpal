@@ -10,10 +10,12 @@ const api = async (method, url, body) => {
 let S = null;
 
 // ---------- Tabs ----------
+let currentTab = "home";
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll("main > [data-tab]").forEach((c) => (c.hidden = c.dataset.tab !== name));
-  if (name === "analysis" && grid && grid.sizeColumnsToFit) setTimeout(() => grid.sizeColumnsToFit(), 50);
+  currentTab = name;
+  if (name === "home" && grid && grid.sizeColumnsToFit) setTimeout(() => grid.sizeColumnsToFit(), 50);
 }
 document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showTab(t.dataset.tab)));
 const POT_NAMES = { tax: "Taxes (estimate)", salaryReserve: "Weekly pay reserve", emergency: "Emergency fund", laptop: "New laptop" };
@@ -350,19 +352,33 @@ function renderProfile(s) {
   $("tpEnabled").checked = tp.enabled !== false;
   $("tpBusiness").value = tp.businessType || ""; $("tpEntity").value = tp.entity || "Sole proprietor"; $("tpState").value = tp.state || "";
   $("tpFed").value = +((tp.federalRate ?? 0.2) * 100).toFixed(1); $("tpStateRate").value = +((tp.stateRate ?? 0) * 100).toFixed(1);
-  $("tpDates").value = (tp.dueDates || []).join(", ");
+  renderDates(tp.dueDates || []);
   profileLoaded = true;
 }
 $("tpSave").onclick = async () => {
   const r = await api("POST", "/api/tax/profile", {
     enabled: $("tpEnabled").checked, businessType: $("tpBusiness").value, entity: $("tpEntity").value, state: $("tpState").value,
     federalRate: Number($("tpFed").value) / 100, stateRate: Number($("tpStateRate").value) / 100,
-    dueDates: $("tpDates").value.split(/[,\s]+/).filter(Boolean),
+    dueDates: [...document.querySelectorAll("#tpDates input")].map((i) => i.value).filter(Boolean),
   });
   render(r);
   $("tpMsg").textContent = `Saved. Tax set-aside: ${r.settings.taxProfile.enabled ? Math.round(r.settings.taxRate * 100) + "% of each payment" : "off"}.`;
 };
 $("tpEnabled").onchange = () => $("tpSave").onclick();
+// Payment dates: one date picker per date, add or delete as needed.
+function renderDates(dates) {
+  $("tpDates").innerHTML = dates.map((d) => `<span class="dateitem"><input type="date" value="${d}"><button type="button" title="Delete this date" aria-label="Delete date">×</button></span>`).join("") ||
+    `<span class="small muted">No dates yet.</span>`;
+  $("tpDates").querySelectorAll(".dateitem button").forEach((b) => (b.onclick = () => {
+    renderDates([...document.querySelectorAll("#tpDates input")].filter((i) => i !== b.previousElementSibling).map((i) => i.value));
+  }));
+}
+$("tpAddDate").onclick = () => {
+  const cur = [...document.querySelectorAll("#tpDates input")].map((i) => i.value);
+  renderDates([...cur, ""]);
+  const inputs = document.querySelectorAll("#tpDates input");
+  inputs[inputs.length - 1].focus();
+};
 const saveRoundUps = async () => {
   const r = await api("POST", "/api/roundups", { enabled: $("ruEnabled").checked, step: Number($("ruStep").value) });
   render(r);
@@ -393,7 +409,7 @@ const cardOf = (id) => $(id).closest(".card");
 function spot(id, caption) {
   document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
   const c = cardOf(id);
-  showTab(c.dataset.tab || "home");
+  showTab(c.closest("[data-tab]")?.dataset.tab || "home");
   c.classList.add("spot");
   c.scrollIntoView({ behavior: "smooth", block: "center" });
   $("guideCaption").textContent = caption;
@@ -406,9 +422,10 @@ const STEPS = [
     document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
     $("guideCaption").textContent = "Meet Ana: freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500.";
   },
+  async () => spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. It warns her about the weak month before it happens, and shows her weekly pay is still protected."),
   async () => {
     if (S.openInvoices.length) await draftReminder(S.openInvoices[0].id);
-    spot("forecastBody", "SteadPal reads her PayPal history: a retainer ended and an invoice is 21 days late. It warns her before the weak month, and the AI drafts a polite reminder to the client.");
+    spot("nudge", "The AI drafts a polite reminder for the late $1,600 invoice. Ana edits it if she wants and sends it through PayPal.");
   },
   async () => {
     if (S.paypal.enabled) {
@@ -449,7 +466,7 @@ const STEPS = [
     $("repType").value = "clients"; $("repPeriod").value = "6";
     const r = await $("reportBtn").onclick();
     const top = r.rows[0];
-    spot("repStats", `Reports: ${top.client} brings ${Math.round(top.share * 100)}% of her income${top.avgDaysLate ? ` and pays about ${top.avgDaysLate} days late` : ""}. Every payment is in the table below, with what counts for the passport.`);
+    spot("repStats", `Reports: ${top.client} brings ${Math.round(top.share * 100)}% of her income${top.avgDaysLate ? ` and pays about ${top.avgDaysLate} days late` : ""}. On Home, every PayPal payment is in one table that shows what counts for the passport.`);
   },
 ];
 document.querySelectorAll(".step").forEach((b) => {

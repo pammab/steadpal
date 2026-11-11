@@ -154,3 +154,17 @@ details.iv summary::-webkit-details-marker { display:none; }
 b.neg { color:#c0392b; } b.pos { color:#1e8a55; } .warnText { color:#9a5a00; }
 #repTable { margin-top:8px; overflow-x:auto; }
 @media (max-width:640px){ .form2{ grid-template-columns:1fr; } details.iv summary{ grid-template-columns:1fr 46px 60px; } details.iv summary .iv-bar, details.iv summary .muted{ display:none; } }
+
+/* v6 layout: rows */
+.layout { max-width:1180px; margin:0 auto; padding:20px 28px; display:flex; flex-direction:column; gap:16px; }
+.layout > .lrow { display:grid; gap:16px; margin:0; align-items:stretch; }
+.layout > .r1 { grid-template-columns:1fr; } .layout > .r2 { grid-template-columns:1fr 1fr; } .layout > .r3 { grid-template-columns:repeat(3, 1fr); }
+.layout > .lrow > .card { min-width:0; }
+.fine { font-size:12px; line-height:1.45; color:#6b7893; border-top:1px dashed #dde4f0; padding-top:8px; margin-top:10px; }
+.datelist { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0; }
+.dateitem { display:flex; align-items:center; gap:4px; border:1px solid #cdd8ee; border-radius:8px; padding:2px 4px 2px 8px; background:#fff; }
+.dateitem input { border:0; font:inherit; font-size:14px; color:#0b1f4d; padding:4px; }
+.dateitem button { border:0; background:none; color:#c0392b; font-size:18px; line-height:1; cursor:pointer; padding:0 4px; }
+@media (max-width:900px){ .layout > .r3 { grid-template-columns:1fr 1fr; } }
+@media (max-width:640px){ .layout { padding:12px; gap:12px; } .layout > .r2, .layout > .r3 { grid-template-columns:1fr; } }
+.layout .wi { max-width:560px; }
