@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SteadPal: the paycheck freelancers never had</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <div class="brand">SteadPal</div>
+      <div class="tag">The paycheck freelancers never had · a feature concept for PayPal</div>
+    </div>
+    <div class="who" id="who"></div>
+  </header>
+
+  <main class="grid">
+    <section class="card wide forecast" id="forecast">
+      <h2>Next month</h2>
+      <div id="forecastBody" class="muted">Loading…</div>
+    </section>
+
+    <section class="card wide">
+      <h2>Your pots <span class="muted small">labels over your PayPal balance · money never leaves your account</span></h2>
+      <div class="pots" id="pots"></div>
+    </section>
+
+    <section class="card">
+      <h2>Get paid</h2>
+      <div id="invoices"></div>
+      <div id="payButtons"></div>
+      <button id="simPay" class="btn">Simulate the late $1,600 payment</button>
+      <p class="hint" id="payHint"></p>
+    </section>
+
+    <section class="card">
+      <h2>Weekly pay <label class="switch"><input type="checkbox" id="salaryToggle"><span>on</span></label></h2>
+      <div id="salaryBody"></div>
+      <button id="paySalary" class="btn ghost">Send this week's pay</button>
+    </section>
+
+    <section class="card">
+      <h2>Partner cashback</h2>
+      <p class="muted small">Pay with PayPal at a partner. The cashback goes to the goal that needs it most.</p>
+      <div id="offers"></div>
+      <div id="shopButtons"></div>
+      <button id="simShop" class="btn ghost">Buy a $120 stylus at InkLine Store (5%)</button>
+    </section>
+
+    <section class="card">
+      <h2>New goal</h2>
+      <input id="goalText" placeholder="e.g. I want $1,200 for a trip by August">
+      <button id="goalBtn" class="btn ghost">Plan it</button>
+      <p class="hint" id="goalOut"></p>
+    </section>
+
+    <section class="card">
+      <h2>What if…</h2>
+      <div class="row"><span>I spend $</span><input id="wiPrice" type="number" value="1400"></div>
+      <button id="wiBtn" class="btn ghost">Simulate</button>
+      <p class="hint" id="wiOut"></p>
+    </section>
+
+    <section class="card">
+      <h2>Monthly report</h2>
+      <button id="reportBtn" class="btn ghost">Explain my month</button>
+      <p class="hint" id="reportOut"></p>
+    </section>
+
+    <section class="card wide">
+      <h2>Income passport <label class="switch"><input type="checkbox" id="passportToggle"><span>on</span></label></h2>
+      <p class="muted small">Facts only, from PayPal commercial payments by verified clients. You choose the period; the most recent months are always used.</p>
+      <div class="row">
+        <select id="ppMonths"><option>3</option><option selected>6</option><option>12</option><option>24</option></select>
+        <span>months</span>
+        <button id="ppBtn" class="btn ghost">Create passport</button>
+      </div>
+      <div id="ppOut"></div>
+    </section>
+
+    <section class="card wide">
+      <h2>Activity</h2>
+      <ul id="activity" class="activity"></ul>
+      <button id="reset" class="btn link">Reset demo</button>
+    </section>
+  </main>
+
+  <footer class="muted small">Demo with simulated data and the PayPal sandbox. Education only, not financial or tax advice.</footer>
+  <script src="/app.js"></script>
+</body>
+</html>

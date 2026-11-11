@@ -1,0 +1,13 @@
+{
+  "name": "steadpal",
+  "version": "0.1.0",
+  "description": "SteadPal: the paycheck freelancers never had. A feature concept for PayPal.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node demo.js",
+    "test": "node test.js"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}
