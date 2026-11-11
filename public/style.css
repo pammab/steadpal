@@ -298,3 +298,12 @@ body { padding-bottom: 0; }
 .step.voice { border-color:#7fe0a8; color:#7fe0a8; }
 .step.voice.active { background:#2bb673; color:#fff; border-color:#2bb673; }
 .step.play { background:#2470e6; border-color:#2470e6; color:#fff; font-weight:700; }
+
+.certview{position:fixed;inset:0;background:rgba(20,33,61,.55);z-index:1500;display:flex;align-items:center;justify-content:center;padding:24px}
+.certview[hidden]{display:none}
+.certbox{background:#fff;border-radius:14px;width:min(900px,96vw);height:min(88vh,1100px);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.certbox .btn{align-self:flex-end;margin:6px 10px 0}
+.certbox iframe{flex:1;border:0;border-radius:0 0 14px 14px}
+
+.clientview{margin-top:12px;border:1px solid #d6dbe6;background:#f6f8fc;border-radius:12px;padding:10px 12px}
+.clientview .cv-head{margin-bottom:8px;font-size:.92em}

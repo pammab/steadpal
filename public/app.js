@@ -58,6 +58,8 @@ document.querySelectorAll(".tab").forEach((t) => (t.onclick = () => showTab(t.da
 const POT_NAMES = { available: "Available to spend", tax: "Taxes (estimate)", salaryReserve: "Income reserve", emergency: "Emergency fund", laptop: "New laptop" };
 
 function render(s, flash = []) {
+  { const open = (s.openInvoices || []).length > 0; // client payment buttons only while an invoice is open
+    $("clientView").hidden = !open; }
   S = s;
   $("who").innerHTML = `<b>${s.user.name}</b><br>${s.user.city} · today ${s.user.today}<br>` +
     `<span class="small">${s.paypal.enabled ? "PayPal sandbox connected" : "Demo mode (no PayPal keys)"} · ` +
@@ -821,24 +823,38 @@ function spot(id, caption) {
   c.scrollIntoView({ behavior: "smooth", block: "center" });
   $("guideCaption").textContent = caption;
 }
+// Certificate preview inside the page (so the screen recording stays on one tab).
+function showCert(url) {
+  let o = $("certView");
+  if (!o) {
+    o = document.createElement("div"); o.id = "certView"; o.className = "certview";
+    o.innerHTML = `<div class="certbox"><button type="button" class="btn link" id="certClose">Close ✕</button><iframe title="Income passport certificate"></iframe></div>`;
+    document.body.appendChild(o);
+    $("certClose").onclick = hideCert;
+  }
+  o.querySelector("iframe").src = url; o.hidden = false;
+}
+function hideCert() { if ($("certView")) $("certView").hidden = true; }
+let lastPassport = null;
+// Each step: run = what happens on screen, wait = pause (ms) before the voice starts, later = [fraction of the clip, action].
 const STEPS = [
-  async () => {
+  { run: async () => {
     await $("reset").onclick();
     window.scrollTo({ top: 0, behavior: "smooth" });
     document.querySelectorAll(".card.spot").forEach((c) => c.classList.remove("spot"));
     showTab("wallet");
-    $("guideCaption").textContent = "SteadPal: the paycheck freelancers never had. Meet Ana, a freelance designer in Los Angeles. $3,500 in March, $800 in April. Rent is still $1,500. SteadPal lives inside her PayPal Wallet: one balance, labelled into pots.";
-  },
-  async () => {
+    $("guideCaption").textContent = "Meet SteadPal: the paycheck freelancers never had. Ana, a freelance designer in Los Angeles, earned $3,500 in March and $800 in April. Rent is still $1,500. SteadPal lives inside her PayPal Wallet.";
+  } },
+  { wait: 1000, run: async () => {
     if (S.paypal.enabled && !autoPlaying) {
       spot("payButtons", "Home · The client pays the late $1,600 invoice with PayPal. Pay with the sandbox buyer account to see the split.");
     } else {
       await $("simPay").onclick();
-      spot("pots", "Home · The late $1,600 arrives through PayPal. SteadPal splits it into taxes, income reserve and emergency fund. The AI explains; the code checks every dollar.");
+      spot("pots", "Home · Three tabs: Home, Analysis, Profile. The late $1,600 arrives through PayPal and SteadPal splits it into taxes, income reserve and emergency fund.");
     }
-  },
-  async () => spot("salaryBody", "Home · From the income reserve, Ana pays herself a steady income every week, even in a slow month. She picks the amount and how often."),
-  async () => {
+  } },
+  { run: async () => spot("salaryBody", "Home · From the income reserve, Ana pays herself a steady income every week, even in a slow month. She picks the amount and how often.") },
+  { wait: 1000, run: async () => {
     $("shopQuery").value = "drawing stylus";
     if (!S.settings.roundUps?.enabled) render(await api("POST", "/api/roundups", { enabled: true, step: 5 }));
     const r = await $("shopBtn").onclick();
@@ -848,54 +864,57 @@ const STEPS = [
       await buyProduct(r.products[0].id);
       spot("shopResults", "Home · She buys with PayPal. The cashback and the optional round-up go to the goal most behind, not to the wallet.");
     }
-  },
-  async () => {
+  } },
+  { run: async () => {
     $("ppMonths").value = "6";
     await $("ppBtn").onclick();
-    spot("ppOut", "Home · A landlord asks for proof of income. Ana shares a signed passport with facts from PayPal and a code anyone can verify.");
-  },
-  async () => {
-    $("repType").value = "clients"; $("repPeriod").value = "6";
+    lastPassport = $("ppOut").querySelector('a[href^="/passport"]')?.getAttribute("href");
+    spot("ppOut", "Home · Income passport: monthly average, lowest and highest month, verified clients, and a note when one or two clients bring most of the income.");
+  }, later: [[0.4, () => { if (lastPassport) { showCert(lastPassport); $("guideCaption").textContent = "Home · The signed certificate: PayPal payments only, a code anyone can verify, expires in 30 days."; } }]] },
+  { wait: 1000, run: async () => {
+    hideCert();
+    $("repType").value = "clients"; $("repPeriod").value = "6"; $("repSelf").checked = true;
     const r = await $("reportBtn").onclick();
     const top = r.rows[0];
-    spot("repStats", `Analysis · Reports: ${top.client} brings ${Math.round(top.share * 100)}% of her income${top.avgDaysLate ? ` and pays about ${top.avgDaysLate} days late` : ""}. An AI consultant answers her questions.`);
-  },
-  async () => {
+    spot("repStats", `Analysis · Reports: ${top.client} brings ${Math.round(top.share * 100)}% of her income${top.avgDaysLate ? ` and pays about ${top.avgDaysLate} days late` : ""}.`);
+  }, later: [[0.45, () => spot("oiList", "Analysis · Income outside PayPal can be self-reported or imported. Reports that include it are marked as modified.")]] },
+  { wait: 2000, run: async () => {
     $("wiPrice").value = 1400; $("wiEarn").value = 0; $("wiCosts").value = 0;
     const r = await $("wiBtn").onclick();
     spot("wiOut", `Analysis · A $1,400 laptop now? Her emergency fund would be ready in ${r.emergencyMonthsAfter} months instead of ${r.emergencyMonthsNow}. She decides.`);
-  },
-  async () => {
+  } },
+  { run: async () => {
     $("ivMonthly").value = 100; $("ivMonths").value = 12;
     await $("ivBtn").onclick();
     spot("ivOut", "Analysis · Save & invest compares savings options with official rates and sources. Education, not advice.");
-  },
-  async () => {
+  } },
+  { run: async () => {
     $("rwMonths").value = "6";
     const r = await $("rwBtn").onclick();
     spot("rwOut", `Analysis · 1,000 possible futures from her own history: ${Math.round(r.probSafe * 100)} in 100 keep her income covered for 6 months. The AI explains; the math decides.`);
-  },
-  async () => {
+  } },
+  { run: async () => {
     showTab("profile"); renderPrefs(S);
-    spot("prefForm", "Profile · Ana sets how each payment is split, how often she gets paid, and her goals. SteadPal can be turned on or off anytime. Click PayPal. Build your future.");
-  },
+    spot("prefForm", "Profile · Ana sets how each payment is split, how often she gets paid, and her goals.");
+  }, later: [[0.33, () => spot("tpBusiness", "Profile · Your business & taxes: business type, tax type, state and payment dates. Optional.")],
+             [0.62, () => spot("prefForm", "SteadPal can be turned on or off anytime. Every dollar through PayPal works for you. Click PayPal. Build your future.")]] },
 ];
 // ---------- Narration: one recorded clip per step (/voice/step-N.mp3), else the browser's voice ----------
 const NARRATION = [
-  "SteadPal: the paycheck freelancers never had. Sixty-four million Americans freelance. Ana is one of them: a designer in Los Angeles. In March she earned thirty-five hundred dollars. In April, eight hundred. Her rent is still fifteen hundred. SteadPal is a feature concept for PayPal. It lives inside the PayPal Wallet: one balance, labelled into pots. The money never leaves PayPal.",
-  "A client pays Ana's late sixteen-hundred-dollar invoice with PayPal. SteadPal splits it right away: taxes, her income reserve, and her emergency fund. The AI explains every decision. The code checks every dollar.",
+  "Meet SteadPal: the paycheck freelancers never had. Sixty-four million Americans freelance. Ana is one of them: a designer in Los Angeles. In March she earned thirty-five hundred dollars. In April, eight hundred. Her rent is still fifteen hundred. SteadPal is a feature concept for PayPal. It lives inside the PayPal Wallet: one balance, labelled into pots. The money never leaves PayPal.",
+  "SteadPal has three main tabs: Home, Analysis and Profile. A client pays Ana's late sixteen-hundred-dollar invoice with PayPal. SteadPal splits it right away: taxes, her income reserve, and her emergency fund. The AI explains every decision. The code checks every dollar.",
   "From that reserve, Ana pays herself a steady income every week, even in a slow month. She chooses the amount and how often. SteadPal only suggests.",
   "She buys a stylus with PayPal through Channel 3. The cashback, and an optional round-up, go to the goal that needs them most, not to her wallet.",
-  "A landlord asks for proof of income. Ana shares a signed income passport: facts from PayPal payments only, with a code anyone can verify.",
-  "In Analysis, her reports show how much each client brings in, and who pays late. An AI consultant answers her questions.",
+  "A landlord asks for proof of income. Ana creates a signed income passport. It shows her monthly average, her lowest and highest months, and how many clients paid her through PayPal. It counts PayPal payments only, and notes when one or two clients bring most of her income. Anyone can check it with its code, and it expires in thirty days.",
+  "In Analysis, her reports show how much each client brings in, and who pays late. Income outside PayPal, like cash or an Etsy shop, can be self-reported or imported, and those reports are marked as modified. An AI consultant answers her questions.",
   "A fourteen-hundred-dollar laptop, right now? SteadPal shows how much later her emergency fund would be ready. Ana decides.",
   "Save and invest compares options like high-yield savings and Treasury bills, with official rates and sources. Education, not advice.",
   "Is her income safe? SteadPal runs one thousand possible futures from her own history, and shows how likely her pay stays covered for the next six months.",
-  "In Profile, and when she turns SteadPal on, Ana sets her preferences: how each payment is split, how often she gets paid, and her goals. SteadPal can be turned on or off anytime. Freelancers get a steady paycheck. Every dollar through PayPal works for you. Click PayPal. Build your future.",
+  "In Profile, and when she turns SteadPal on, Ana sets her preferences: how each payment is split, how often she gets paid, and her goals. In Your business and taxes, she adds her business type, tax type, state and tax dates, so SteadPal sets the right amount aside. Taxes are optional. SteadPal can be turned on or off anytime. Freelancers get a steady paycheck. Every dollar through PayPal works for you. Click PayPal. Build your future.",
 ];
 let voiceOn = false;
 const player = new Audio(); player.preload = "auto";
-function stopVoice() { player.pause(); player.onended = null; if (window.speechSynthesis) speechSynthesis.cancel(); }
+function stopVoice() { player.pause(); player.onended = null; player.ontimeupdate = null; if (window.speechSynthesis) speechSynthesis.cancel(); }
 function pickVoice() {
   const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
   return vs.find((v) => /Google US English/i.test(v.name)) || vs.find((v) => /Samantha|Jenny|Aria|Zira/i.test(v.name) && /en/i.test(v.lang)) || vs.find((v) => /^en-US/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || null;
@@ -903,24 +922,37 @@ function pickVoice() {
 const clip = (n) => `/voice/step-${n}.mp3`;
 let hasRecording = false;
 fetch(clip(0), { method: "HEAD" }).then((r) => (hasRecording = r.ok)).catch(() => {});
-// Speaks step n; resolves when that step's voice has finished.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Speaks step n and fires its "later" actions at their point in the clip; resolves when the voice ends.
 function say(n) {
+  const later = (STEPS[n].later || []).map(([f, fn]) => ({ f, fn, done: false }));
+  const fire = (frac) => later.forEach((x) => { if (!x.done && frac >= x.f) { x.done = true; try { x.fn(); } catch {} } });
   return new Promise((done) => {
     stopVoice();
+    const finish = () => { fire(1); done(); };
     if (hasRecording) {
       player.src = clip(n); player.currentTime = 0;
-      player.onended = () => done(); player.onerror = () => done();
-      player.play().catch(() => done());
+      player.ontimeupdate = () => { if (player.duration) fire(player.currentTime / player.duration); };
+      player.onended = finish; player.onerror = finish;
+      player.play().catch(finish);
       return;
     }
-    if (!window.speechSynthesis) return setTimeout(done, 6000);
+    if (!window.speechSynthesis) return setTimeout(finish, 6000);
     const u = new SpeechSynthesisUtterance(NARRATION[n]);
     const v = pickVoice(); if (v) u.voice = v;
     u.lang = "en-US"; u.rate = 0.98;
-    u.onend = done; u.onerror = done; speechSynthesis.speak(u);
+    const len = NARRATION[n].length;
+    u.onboundary = (e) => fire(e.charIndex / len);
+    u.onend = finish; u.onerror = finish; speechSynthesis.speak(u);
   });
 }
-function speakStep(n) { if (voiceOn && NARRATION[n]) say(n); }
+// Screen first, then the voice: run the step, let the scroll settle, then speak.
+async function runStep(i) {
+  hideCert();
+  try { await STEPS[i].run(); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; }
+  await sleep(500 + (STEPS[i].wait || 0));
+}
+async function speakStep(n) { if (voiceOn && NARRATION[n]) await say(n); }
 
 // One button: each step runs, then its own voice clip plays to the end, then the next step starts.
 let autoPlaying = false;
@@ -931,15 +963,19 @@ function markStep(i) {
   });
 }
 $("playAll").onclick = async () => {
-  if (autoPlaying) { autoPlaying = false; stopVoice(); $("playAll").textContent = "▶ Play demo with voice"; return; }
+  if (autoPlaying) { autoPlaying = false; stopVoice(); hideCert(); $("playAll").textContent = "▶ Play demo with voice"; return; }
   autoPlaying = true;
   $("playAll").textContent = "■ Stop";
+  if (hasRecording) { // unlock audio inside the click, so later clips can play
+    player.muted = true; player.src = clip(0);
+    player.play().then(() => { player.pause(); player.muted = false; }).catch(() => { player.muted = false; });
+  }
   for (let i = 0; i < STEPS.length && autoPlaying; i++) {
     markStep(i);
-    const voice = say(i); // start the voice with the step, so the first clip plays inside the click
-    try { await STEPS[i](); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; }
-    await voice;
-    if (autoPlaying) await new Promise((r) => setTimeout(r, 350));
+    await runStep(i);
+    if (!autoPlaying) break;
+    await say(i);
+    if (autoPlaying) await sleep(250);
   }
   autoPlaying = false; $("playAll").textContent = "▶ Play demo with voice";
 };
@@ -959,8 +995,9 @@ document.querySelectorAll(".step[data-step]").forEach((b) => {
       x.classList.toggle("active", x === b);
       x.classList.toggle("done", Number(x.dataset.step) < i);
     });
+    stopVoice();
+    await runStep(i);
     speakStep(i);
-    try { await STEPS[i](); } catch (e) { $("guideCaption").textContent = "Something went wrong: " + e.message; }
   };
 });
 

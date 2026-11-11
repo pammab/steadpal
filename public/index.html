@@ -93,8 +93,11 @@
         <textarea id="nudgeText" rows="7"></textarea>
         <div class="row"><button id="nudgeSend" class="btn">Send reminder</button><button id="nudgeCancel" class="btn link">Cancel</button></div>
       </div>
-      <div id="payButtons"></div>
-      <button id="simPay" class="btn">Simulate the late $1,600 payment</button>
+      <div class="clientview" id="clientView">
+        <div class="cv-head"><b>Client's view</b> <span class="muted small">demo only · what Northwind Ltd sees when it opens the PayPal invoice</span></div>
+        <div id="payButtons"></div>
+        <button id="simPay" class="btn">Simulate the client paying $1,600</button>
+      </div>
       <p class="hint" id="payHint"></p>
     </section>
     <section class="card c-shop">
