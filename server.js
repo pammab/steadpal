@@ -583,6 +583,30 @@ const routes = {
     log("pot", `"${g.name}" updated: $${g.target} by ${g.deadline}.`);
     return [200, state()];
   },
+  "POST /api/pots/pyusd": async (b) => {
+    // Concept: hold a pot in PYUSD (PayPal USD stablecoin, 1 PYUSD = 1 USD) inside the same PayPal balance.
+    if (!(b.id in data.pots)) return [404, { error: "Pot not found" }];
+    data.settings.pyusdPots = data.settings.pyusdPots || {};
+    const on = Boolean(b.on);
+    if (on) data.settings.pyusdPots[b.id] = true; else delete data.settings.pyusdPots[b.id];
+    const g = data.goals.find((x) => x.pot === b.id || x.id === b.id);
+    const name = g ? g.name : ({ tax: "Taxes", salaryReserve: "Income reserve", emergency: "Emergency fund", available: "Available to spend" })[b.id] || b.id;
+    log("pot", on ? `"${name}" ($${data.pots[b.id]}) now held in PYUSD, 1:1 with USD. Not FDIC-insured.` : `"${name}" switched back to USD.`);
+    return [200, state()];
+  },
+  "POST /api/pyusd/apply": async (b) => {
+    // Several pots at once: amount "all" or a dollar amount (capped at the pot); 0 = back to USD.
+    data.settings.pyusdPots = data.settings.pyusdPots || {};
+    const done = [];
+    for (const it of Array.isArray(b.items) ? b.items : []) {
+      if (!(it.id in data.pots)) continue;
+      if (it.amount === "all") data.settings.pyusdPots[it.id] = true;
+      else { const a = Math.max(0, Math.round(Number(it.amount) || 0)); if (a) data.settings.pyusdPots[it.id] = a; else delete data.settings.pyusdPots[it.id]; }
+      done.push(it.id);
+    }
+    if (done.length) log("pot", `PYUSD updated for ${done.length} pot${done.length > 1 ? "s" : ""}. 1 PYUSD = 1 USD; not FDIC-insured.`);
+    return [200, state()];
+  },
   "POST /api/pots/delete": async (b) => {
     if (b.id === "tax") return [400, { error: "The tax pot can't be deleted; turn tax set-aside off in Profile instead" }];
     const amount = data.pots[b.id] || 0;

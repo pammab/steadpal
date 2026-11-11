@@ -99,8 +99,16 @@ function render(s, flash = []) {
       ${reserveTarget ? `<div class="bar"><i style="width:${Math.min(100, Math.round((v / reserveTarget) * 100))}%"></i></div><div class="muted small">target ${usd(reserveTarget)} = ${s.settings.reserveWeeks || 4} weeks of income</div>` : ""}
       ${k === "tax" ? `<div class="muted small">${s.tax.enabled ? Math.round(s.tax.rate * 100) + "% of each payment" : "off"}</div>` : ""}
       ${k === "emergency" ? `<div class="muted small">Common guide: 3+ months of expenses ${i("emergency")}</div>` : ""}
-      ${k === "emergency" && pyusdRate ? `<div class="pyusd small">Opt in to hold it in PYUSD: about ${usd(v * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(0)}% ${i("pyusd")}</div>` : ""}</div>`;
+      ${(() => { const on = s.settings.pyusdPots?.[k]; const amt = on === true ? v : Math.min(Number(on) || 0, v);
+        return `<div class="pyusd small">${on ? `<b>In PYUSD${on === true ? "" : `: ${usd(amt)} of ${usd(v)}`}</b> · about ${usd(amt * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(1)}% ${i("pyusd")} <button class="btn link small-btn" data-pyusd="${k}" data-on="0">Back to USD</button>`
+          : `<button class="btn link small-btn" data-pyusd="${k}" data-on="1">Hold in PYUSD</button>${v && pyusdRate ? ` <span class="muted">≈ ${usd(v * pyusdRate)}/yr</span>` : ""}`}</div>`; })()}</div>`;
   }).join("");
+  $("pots").querySelectorAll("[data-pyusd]").forEach((b) => (b.onclick = async () => {
+    const on = b.dataset.on === "1";
+    if (on && !confirm("Hold this pot in PYUSD?\n\nPYUSD is PayPal's US-dollar stablecoin (1 PYUSD = 1 USD). It can earn PayPal's variable PYUSD reward, but it is not FDIC-insured. You can switch back to USD anytime.")) return;
+    try { render(await api("POST", "/api/pots/pyusd", { id: b.dataset.pyusd, on }), [b.dataset.pyusd]); } catch (e) { alert(e.message); }
+  }));
+  renderPyPlan(s);
   if (!$("potManager").hidden) renderPotManager(potManagerKey);
   if (!s.wallet.enabled) $("pots").innerHTML = `<div class="w-off">SteadPal is off: payments go straight to your balance (${usd(s.wallet.available)} available). <button class="btn small-btn" id="potsOn">Turn SteadPal on</button></div>`;
   if ($("potsOn")) $("potsOn").onclick = () => openSetup();
@@ -871,8 +879,12 @@ const STEPS = [
     lastPassport = $("ppOut").querySelector('a[href^="/passport"]')?.getAttribute("href");
     spot("ppOut", "Home · Income passport: monthly average, lowest and highest month, verified clients, and a note when one or two clients bring most of the income.");
   }, later: [[0.4, () => { if (lastPassport) { showCert(lastPassport); $("guideCaption").textContent = "Home · The signed certificate: PayPal payments only, a code anyone can verify, expires in 30 days."; } }]] },
+  { run: async () => {
+    $("evidence").hidden = true;
+    spot("forecastBody", "Analysis · Next month: a retainer ended and an invoice is late, so SteadPal flags a weak month before it happens. Every number shows its data.");
+  }, later: [[0.6, () => { const a = $("forecastBody").querySelector('.ev[data-ev="expected"]'); if (a) { a.click(); $("evidence").scrollIntoView({ behavior: "smooth", block: "center" }); } }]] },
   { wait: 1000, run: async () => {
-    hideCert();
+    hideCert(); $("evidence").hidden = true;
     $("repType").value = "clients"; $("repPeriod").value = "6"; $("repSelf").checked = true;
     const r = await $("reportBtn").onclick();
     const top = r.rows[0];
@@ -886,7 +898,7 @@ const STEPS = [
   { run: async () => {
     $("ivMonthly").value = 100; $("ivMonths").value = 12;
     await $("ivBtn").onclick();
-    spot("ivOut", "Analysis · Save & invest compares savings options with official rates and sources. Education, not advice.");
+    spot("ivOut", "Analysis · Save & invest compares savings options with official rates and sources, and any pot can be held in PYUSD. Education, not advice.");
   } },
   { run: async () => {
     $("rwMonths").value = "6";
@@ -895,22 +907,23 @@ const STEPS = [
   } },
   { run: async () => {
     showTab("profile"); renderPrefs(S);
-    spot("prefForm", "Profile · Ana sets how each payment is split, how often she gets paid, and her goals.");
-  }, later: [[0.33, () => spot("tpBusiness", "Profile · Your business & taxes: business type, tax type, state and payment dates. Optional.")],
-             [0.62, () => spot("prefForm", "SteadPal can be turned on or off anytime. Every dollar through PayPal works for you. Click PayPal. Build your future.")]] },
+    spot("tpBusiness", "Profile · Your business & taxes: business type, tax type, state and tax dates. Optional.");
+  }, later: [[0.42, () => spot("prefForm", "Profile · Preferences: how each payment is split, how often she gets paid, and her goals.")],
+             [0.82, () => { $("guideCaption").textContent = "SteadPal, and any of its features, can be turned on or off anytime. Click PayPal. Build your future."; }]] },
 ];
 // ---------- Narration: one recorded clip per step (/voice/step-N.mp3), else the browser's voice ----------
 const NARRATION = [
   "Meet SteadPal: the paycheck freelancers never had. Sixty-four million Americans freelance. Ana is one of them: a designer in Los Angeles. In March she earned thirty-five hundred dollars. In April, eight hundred. Her rent is still fifteen hundred. SteadPal is a feature concept for PayPal. It lives inside the PayPal Wallet: one balance, labelled into pots. The money never leaves PayPal.",
-  "SteadPal has three main tabs: Home, Analysis and Profile. A client pays Ana's late sixteen-hundred-dollar invoice with PayPal. SteadPal splits it right away: taxes, her income reserve, and her emergency fund. The AI explains every decision. The code checks every dollar.",
-  "From that reserve, Ana pays herself a steady income every week, even in a slow month. She chooses the amount and how often. SteadPal only suggests.",
+  "With three main tabs: Home, Analysis and Profile. A client pays Ana's late sixteen-hundred-dollar invoice with PayPal. SteadPal splits it right away: taxes, her income reserve, and her emergency fund.",
+  "From that reserve, Ana pays herself a steady income every week, even in a slow month. She chooses the amount and how often.",
   "She buys a stylus with PayPal through Channel 3. The cashback, and an optional round-up, go to the goal that needs them most, not to her wallet.",
-  "A landlord asks for proof of income. Ana creates a signed income passport. It shows her monthly average, her lowest and highest months, and how many clients paid her through PayPal. It counts PayPal payments only, and notes when one or two clients bring most of her income. Anyone can check it with its code, and it expires in thirty days.",
-  "In Analysis, her reports show how much each client brings in, and who pays late. Income outside PayPal, like cash or an Etsy shop, can be self-reported or imported, and those reports are marked as modified. An AI consultant answers her questions.",
+  "A landlord asks for proof of income. Ana creates a signed income passport. It shows her monthly average, her lowest and highest months, and her verified clients. It counts PayPal payments only, and notes when one or two clients bring most of her income. Anyone can check it with its code, and it expires in thirty days.",
+  "In Analysis, Next month shows what's coming. A retainer ended and an invoice is late, so SteadPal warns her about a weak month before it happens. Tap any number to see the data behind it.",
+  "Her reports show how much each client brings in, and who pays late. Income outside PayPal, like cash or an Etsy shop, can be self-reported or imported, and those reports are marked as modified. An AI consultant answers her questions.",
   "A fourteen-hundred-dollar laptop, right now? SteadPal shows how much later her emergency fund would be ready. Ana decides.",
-  "Save and invest compares options like high-yield savings and Treasury bills, with official rates and sources. Education, not advice.",
-  "Is her income safe? SteadPal runs one thousand possible futures from her own history, and shows how likely her pay stays covered for the next six months.",
-  "In Profile, and when she turns SteadPal on, Ana sets her preferences: how each payment is split, how often she gets paid, and her goals. In Your business and taxes, she adds her business type, tax type, state and tax dates, so SteadPal sets the right amount aside. Taxes are optional. SteadPal can be turned on or off anytime. Freelancers get a steady paycheck. Every dollar through PayPal works for you. Click PayPal. Build your future.",
+  "Save and invest compares savings options with official rates and sources, and lets her hold any pot in PYUSD. Education, not advice.",
+  "Is her income safe? SteadPal runs one thousand possible futures, and shows how likely her pay stays covered for the next six months.",
+  "In Profile, under Your business and taxes, Ana adds her business type, tax type, state and tax dates, so SteadPal sets the right amount aside. When she turns SteadPal on, she sets her preferences: how each payment is split, how often she gets paid, and her goals. SteadPal, and any of its features, can be turned on or off anytime.",
 ];
 let voiceOn = false;
 const player = new Audio(); player.preload = "auto";
@@ -1037,3 +1050,38 @@ function mountButton(el, { amount, description, kind, payer, merchant, productId
     } catch { $("payHint").textContent = "PayPal could not load; demo buttons still work."; $("simPay").style.display = ""; }
   }
 })();
+
+// ---------- Save & invest: choose which pots (and how much) to hold in PYUSD ----------
+function renderPyPlan(s) {
+  const box = $("pyPlan"); if (!box || box.dataset.busy) return;
+  const goals = Object.fromEntries(s.goals.map((g) => [g.id, g.name]));
+  box.innerHTML = Object.entries(s.pots).map(([k, v]) => {
+    const on = s.settings.pyusdPots?.[k];
+    const mode = on === true ? "all" : on ? "custom" : "none";
+    return `<div class="pyrow" data-k="${k}"><span class="pyname">${goals[k] || POT_NAMES[k] || k} <span class="muted">${usd(v)}</span></span>
+      <select class="pymode"><option value="none"${mode === "none" ? " selected" : ""}>Keep in USD</option><option value="all"${mode === "all" ? " selected" : ""}>All of it</option>
+      <option value="half"${mode === "half" ? " selected" : ""}>Half</option><option value="custom"${mode === "custom" ? " selected" : ""}>Custom amount</option></select>
+      <span class="money pyamt"${mode === "custom" ? "" : " hidden"}><b>$</b><input type="number" min="0" max="${v}" value="${mode === "custom" ? on : ""}"></span>
+      <span class="muted pyest"></span></div>`;
+  }).join("");
+  const est = () => {
+    let total = 0;
+    box.querySelectorAll(".pyrow").forEach((r) => {
+      const v = S.pots[r.dataset.k] || 0, m = r.querySelector(".pymode").value;
+      r.querySelector(".pyamt").hidden = m !== "custom";
+      const a = m === "all" ? v : m === "half" ? Math.round(v / 2) : m === "custom" ? Math.min(v, Number(r.querySelector(".pyamt input").value) || 0) : 0;
+      r.querySelector(".pyest").textContent = a ? `${usd(a)} → ≈ ${usd(a * pyusdRate)}/yr` : "";
+      total += a;
+    });
+    $("pySum").textContent = total ? `${usd(total)} in PYUSD ≈ ${usd(total * pyusdRate)}/year at ${(pyusdRate * 100).toFixed(1)}% (variable)` : "Nothing in PYUSD.";
+  };
+  box.oninput = box.onchange = est; est();
+}
+$("pyApply").onclick = async () => {
+  const items = [...$("pyPlan").querySelectorAll(".pyrow")].map((r) => {
+    const v = S.pots[r.dataset.k] || 0, m = r.querySelector(".pymode").value;
+    return { id: r.dataset.k, amount: m === "all" ? "all" : m === "half" ? Math.round(v / 2) : m === "custom" ? Math.min(v, Number(r.querySelector(".pyamt input").value) || 0) : 0 };
+  });
+  if (items.some((x) => x.amount) && !confirm("Hold the selected amounts in PYUSD?\n\nPYUSD is PayPal's US-dollar stablecoin (1 PYUSD = 1 USD). It can earn PayPal's variable reward, but it is not FDIC-insured. You can switch back anytime.")) return;
+  try { render(await api("POST", "/api/pyusd/apply", { items })); $("pyMsg").textContent = "Saved. Your pots show what is held in PYUSD."; } catch (e) { $("pyMsg").textContent = e.message; }
+};
